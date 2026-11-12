@@ -1,0 +1,3350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>群岛 · ARCHIPELAGO</title>
+<style>
+:root{color-scheme:light;--ink:#16302a;--line:rgba(22,48,42,.13);--paper:rgba(255,255,255,.9);--deep:#16443c}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:#a8dcf0;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+.app{position:fixed;inset:0}
+.stage{position:absolute;inset:0;overflow:hidden;touch-action:none;
+  background:linear-gradient(180deg,#a8dcf0 0%,#c4e8f4 34%,#d9f1f6 62%,#eaf8f8 100%)}
+.stage.night{background:linear-gradient(180deg,#0b1533 0%,#132249 26%,#1d3159 52%,#2c4670 78%,#3d5a86 100%)}
+.veil{position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;transition:opacity .7s}
+.veil-night{background:
+  radial-gradient(22% 30% at 78% 11%, rgba(206,226,255,.13) 0%, rgba(200,220,255,.045) 46%, rgba(200,220,255,0) 74%),
+  linear-gradient(180deg, rgba(10,20,46,0) 0%, rgba(10,20,46,.10) 46%, rgba(9,18,42,.26) 76%, rgba(7,15,36,.40) 100%)}
+.stage.night .veil{opacity:1}
+.nightsky{position:absolute;inset:0;z-index:3;pointer-events:none;opacity:0;transition:opacity .9s;
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 15%,rgba(0,0,0,.62) 24%,rgba(0,0,0,0) 31%);
+  mask-image:linear-gradient(180deg,#000 0%,#000 15%,rgba(0,0,0,.62) 24%,rgba(0,0,0,0) 31%)}
+.stage.night .nightsky{opacity:1}
+#stars{position:absolute;inset:0;width:100%;height:100%;display:block}
+.moon{position:absolute;right:14%;top:8%;width:clamp(46px,6.4vw,78px);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle at 36% 30%, #fffdf4 0%, #f6f2dd 46%, #e2e1c9 78%, #cfd3bd 100%);
+  box-shadow:0 0 22px 7px rgba(232,240,255,.50), 0 0 66px 28px rgba(176,204,255,.22),
+    0 0 112px 42px rgba(132,168,240,.10)}
+.moon::after{content:'';position:absolute;inset:0;border-radius:50%;overflow:hidden;
+  background:
+    radial-gradient(circle at 63% 27%, rgba(150,158,140,.28) 0 8%, rgba(150,158,140,0) 9%),
+    radial-gradient(circle at 38% 60%, rgba(150,158,140,.22) 0 12%, rgba(150,158,140,0) 13%),
+    radial-gradient(circle at 72% 68%, rgba(150,158,140,.18) 0 6%, rgba(150,158,140,0) 7%)}
+.stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:1}
+.haze{display:none;position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(180deg, rgba(210,239,250,.62) 0%, rgba(206,236,247,.30) 17%,
+    rgba(200,232,245,.08) 31%, rgba(200,232,245,0) 44%)}
+.stage.night .haze{display:none}
+@media (max-aspect-ratio: 3/4){ .haze{display:block} }
+
+/* ---- 岛名标签：跟着投影走，否则七座岛不知道该点哪座 ---- */
+.labels{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.lab{position:absolute;left:0;top:0;white-space:nowrap;will-change:transform;
+  font-size:11px;font-weight:700;letter-spacing:.5px;color:#123a34;
+  background:rgba(255,255,255,.80);border:1px solid rgba(20,60,54,.10);
+  padding:3.5px 10px;border-radius:999px;backdrop-filter:blur(6px);
+  box-shadow:0 2px 9px rgba(16,60,60,.13);opacity:0;transition:opacity .28s}
+.lab.on{opacity:1}
+.stage.night .lab{background:rgba(18,30,54,.74);color:#cfdcf4;border-color:rgba(140,180,255,.20);
+  box-shadow:0 2px 10px rgba(2,8,22,.45)}
+.lab b{font-weight:800}
+.lab i{font-style:normal;opacity:.46;margin-left:5px;font-size:10px}
+
+.float{position:absolute;z-index:4}
+.brand{left:0;top:0;padding:calc(15px + env(safe-area-inset-top)) 18px 14px;pointer-events:none}
+.brand .k{font-size:10.5px;font-weight:800;letter-spacing:2px;color:rgba(255,255,255,.94);text-shadow:0 1px 3px rgba(16,60,72,.45)}
+.brand h1{margin:6px 0 0;font-size:22px;font-weight:800;letter-spacing:.5px;color:#fff;line-height:1.15;
+  text-shadow:0 1px 5px rgba(16,60,72,.48)}
+.stage.night .brand .k{color:rgba(206,224,255,.92);text-shadow:0 1px 4px rgba(4,10,26,.85)}
+.stage.night .brand h1{color:#f2f7ff;text-shadow:0 1px 10px rgba(6,14,32,.80), 0 0 24px rgba(120,158,240,.25)}
+
+.bar{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;
+  padding:0 12px calc(13px + env(safe-area-inset-bottom));transition:opacity .3s}
+.app.sheet-open .bar{opacity:0;pointer-events:none}
+.snap .sheet,.snap .bar,.snap .hint,.snap .nightsky,.snap .veil,.snap .lab{transition:none!important}
+.bar button{min-height:40px;padding:0 16px;border-radius:999px;border:1px solid var(--line);background:var(--paper);
+  color:var(--ink);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;backdrop-filter:blur(10px);
+  box-shadow:0 2px 10px rgba(20,70,70,.12);transition:transform .12s,background .18s,color .18s,border-color .18s}
+.bar button:active{transform:scale(.95)}
+.bar button:focus-visible{outline:2px solid var(--deep);outline-offset:2px}
+.bar button.on{background:var(--deep);color:#fff;border-color:var(--deep);box-shadow:0 3px 14px rgba(22,68,60,.28)}
+.bar button.act{background:rgba(255,255,255,.86);color:#2c4c42;font-weight:600}
+.stage.night ~ .bar button{background:rgba(24,40,68,.80);color:#dbe8fb;border-color:rgba(140,180,255,.20)}
+.stage.night ~ .bar button.on{background:#2f6fd0;border-color:#2f6fd0;color:#fff}
+
+.hint{left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));font-size:11.5px;font-weight:600;
+  color:#eaf6f2;background:rgba(17,44,38,.66);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);
+  padding:7px 14px;border-radius:999px;pointer-events:none;z-index:4;transition:opacity .8s}
+.hint b{color:#9ee6c8;font-weight:800}
+.err{inset:0;display:none;align-items:center;justify-content:center;padding:24px;text-align:center;font-size:13px;
+  color:#a32d2d;background:rgba(255,255,255,.95);z-index:8}
+
+/* 自由走：虚拟摇杆（触屏）/ 键盘提示。只在漫游态显示。
+   bottom 要抬到底栏（按钮 ≈55px + 安全区）之上，否则手机上被按钮压住 */
+#joy{position:fixed;left:16px;bottom:calc(78px + env(safe-area-inset-bottom));width:104px;height:104px;border-radius:50%;
+  background:rgba(20,48,42,.32);border:1.5px solid rgba(255,255,255,.30);backdrop-filter:blur(3px);
+  display:none;z-index:40;touch-action:none;-webkit-user-select:none;user-select:none}
+#joy.on{display:block}
+#joyKnob{position:absolute;left:50%;top:50%;width:46px;height:46px;border-radius:50%;
+  background:rgba(255,255,255,.62);box-shadow:0 2px 12px rgba(10,30,25,.30);
+  transform:translate(-50%,-50%);pointer-events:none;transition:transform .06s linear}
+#joy.active #joyKnob{transition:none;background:rgba(255,255,255,.86)}
+@media (pointer:fine){ #joy{opacity:.55} }   /* 桌面端即便误显示也弱化 */
+
+/* 自由走：屏幕方向键。桌面端兜底 —— 预览面板/iframe 里键盘可能拿不到焦点，
+   有了它鼠标按住就能走；触屏设备已有摇杆，不显示这套。 */
+#dpad{position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom));width:132px;height:132px;z-index:40;
+  display:none;grid-template-areas:'. u .' 'l . r' '. d .';grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;gap:5px}
+#dpad.on{display:grid}
+#dpad button{margin:0;padding:0;border-radius:12px;border:1.5px solid rgba(255,255,255,.30);background:rgba(20,48,42,.32);
+  color:#eaf6f2;font-size:15px;font-weight:700;backdrop-filter:blur(3px);touch-action:none;cursor:pointer;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#dpad button.on,#dpad button:active{background:rgba(255,255,255,.62);color:#14302a;border-color:rgba(255,255,255,.55)}
+@media (pointer:fine){ #dpad{opacity:.62} }
+
+/* 漫游第③步：乘船条。走到码头根部弹出，选一座岛出发。
+   桌面端抬到底栏之上；手机端再抬到摇杆上方（见媒体查询），避免与摇杆叠 */
+.voy{position:absolute;left:0;right:0;bottom:calc(120px + env(safe-area-inset-bottom));z-index:5;
+  display:flex;justify-content:center;align-items:center;gap:8px;pointer-events:none;
+  opacity:0;transition:opacity .4s}
+.voy.on{opacity:1;pointer-events:auto}
+.voy-t{flex:0 0 auto;font-size:10.5px;font-weight:800;color:#eaf6f2;letter-spacing:.05em;
+  background:rgba(17,44,38,.66);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);
+  padding:6px 11px;border-radius:999px}
+#voyChips{display:flex;gap:6px;max-width:70vw;overflow-x:auto;padding:2px;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(to right,transparent 0,#000 8px,#000 calc(100% - 16px),transparent 100%);
+  mask-image:linear-gradient(to right,transparent 0,#000 8px,#000 calc(100% - 16px),transparent 100%)}
+#voyChips::-webkit-scrollbar{display:none}
+#voyChips button{flex:0 0 auto;margin:0;font-size:11px;font-weight:700;color:#eaf6f2;cursor:pointer;
+  background:rgba(20,48,42,.55);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(8px);
+  padding:6px 12px;border-radius:999px;-webkit-tap-highlight-color:transparent}
+#voyChips button:active{background:rgba(255,255,255,.72);color:#14302a}
+
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:7;display:flex;justify-content:center;
+  padding:0 10px calc(10px + env(safe-area-inset-bottom));
+  transform:translateY(calc(100% + 24px));transition:transform .46s cubic-bezier(.22,.9,.24,1);
+  pointer-events:none}
+.sheet.on{transform:translateY(0);pointer-events:auto}
+.sheet-in{position:relative;width:100%;max-width:430px;max-height:62vh;overflow:auto;overscroll-behavior:contain;
+  background:rgba(252,255,253,.965);border:1px solid rgba(22,48,42,.10);border-radius:22px;
+  padding:16px 17px 15px;box-shadow:0 -10px 40px rgba(10,44,38,.22), 0 1px 0 rgba(255,255,255,.7) inset;
+  backdrop-filter:blur(18px) saturate(1.25);-webkit-backdrop-filter:blur(18px) saturate(1.25)}
+.sheet .row{display:flex;align-items:center;gap:8px;margin-bottom:9px;padding-right:38px}
+.sheet .tag{font-size:10px;font-weight:800;letter-spacing:1.3px;color:#1d6b57;background:rgba(45,160,124,.13);
+  border:1px solid rgba(45,160,124,.20);padding:3px 8px;border-radius:999px}
+.sheet .idx{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:1px;color:rgba(22,48,42,.38)}
+.sheet h2{margin:0;font-size:20px;line-height:1.25;font-weight:800;letter-spacing:.3px;color:#14332c}
+.sheet .sub{margin:5px 0 0;font-size:12.5px;font-weight:600;color:#3f7266;line-height:1.5}
+.sheet .desc{margin:10px 0 0;font-size:12.5px;line-height:1.66;color:#2f4c45}
+.sheet ul{margin:11px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.sheet li{position:relative;padding-left:14px;font-size:11.8px;line-height:1.5;color:#3d5c54}
+.sheet li::before{content:'';position:absolute;left:2px;top:6.4px;width:4px;height:4px;border-radius:50%;background:#4bab8a}
+.sheet .x{position:absolute;right:11px;top:11px;width:30px;height:30px;border-radius:50%;border:0;padding:0;
+  background:rgba(22,48,42,.06);color:#3a5c52;font-size:17px;line-height:1;font-family:inherit;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:background .16s,transform .12s}
+.sheet .x:active{transform:scale(.9)}
+.stage.night .sheet .sheet-in{background:rgba(18,28,49,.93);border-color:rgba(150,186,255,.16);
+  box-shadow:0 -10px 40px rgba(2,8,22,.55), 0 1px 0 rgba(170,200,255,.10) inset}
+.stage.night .sheet h2{color:#eaf3ff}
+.stage.night .sheet .sub{color:#9dc0f0}
+.stage.night .sheet .desc{color:#c3d4ec}
+.stage.night .sheet li{color:#b3c6e2}
+.stage.night .sheet .tag{color:#9fe6c4;background:rgba(80,200,160,.13);border-color:rgba(80,200,160,.22)}
+.stage.night .sheet li::before{background:#5fd6a8}
+.stage.night .sheet .idx{color:rgba(200,220,250,.42)}
+.stage.night .sheet .x{background:rgba(190,215,255,.10);color:#cfe0f8}
+
+@media (max-width:620px){
+  .brand h1{font-size:19px}
+  .bar button{min-height:42px;padding:0 13px;font-size:12px}
+  .bar{gap:6px}
+  .lab{font-size:10px;padding:3px 8px}
+  /* 手机：乘船条抬到摇杆上方，且比摇杆窄，保证两者不打架 */
+  .voy{bottom:calc(194px + env(safe-area-inset-bottom));gap:6px}
+  #voyChips{max-width:62vw}
+  #voyChips button{font-size:10.5px;padding:5px 10px}
+}
+/* 作品卡展开时，摇杆/方向键/乘船条都收起，别压在卡片上 */
+.app.sheet-open #joy, .app.sheet-open #dpad, .app.sheet-open .voy{opacity:0;pointer-events:none}
+/* 手机横屏：屏幕矮，乘船条贴回底栏上方（摇杆在最左侧，横向不冲突） */
+@media (max-height:520px) and (max-width:900px){
+  .voy{bottom:calc(72px + env(safe-area-inset-bottom))}
+  .voy-t{padding:5px 9px}
+}
+@media (max-aspect-ratio: 3/4){
+  .brand .k{color:#1b4a54;text-shadow:none}
+  .brand h1{color:#12362f;text-shadow:none}
+  .stage.night .brand .k{color:rgba(206,224,255,.92)}
+  .stage.night .brand h1{color:#f2f7ff}
+}
+
+/* ---- 海报模式 ?hero=1：只留画面，UI 全收掉（错误提示保留，便于排查） ---- */
+html.hero .brand, html.hero .hint, html.hero .bar,
+html.hero .labels, html.hero .sheet, html.hero #joy,
+html.hero #dpad, html.hero #voy{display:none!important}
+html.hero .stage{cursor:default}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="stage" id="stage">
+    <div class="haze"></div>
+    <div class="veil veil-night"></div>
+    <div class="nightsky" id="nightsky">
+      <canvas id="stars"></canvas>
+      <div class="moon"></div>
+    </div>
+    <div class="labels" id="labels"></div>
+    <div class="float brand"><div class="k" id="bK">ARCHIPELAGO · 07 ISLES</div><h1 id="bH">群岛</h1></div>
+    <div class="float hint" id="hint"><b>拖动</b>转 · <b>点岛</b>上岸 · <b>双指</b>缩放</div>
+    <div id="joy"><div id="joyKnob"></div></div>
+    <div id="dpad">
+      <button type="button" data-k="w" style="grid-area:u" aria-label="前进">▲</button>
+      <button type="button" data-k="a" style="grid-area:l" aria-label="左移">◀</button>
+      <button type="button" data-k="s" style="grid-area:d" aria-label="后退">▼</button>
+      <button type="button" data-k="d" style="grid-area:r" aria-label="右移">▶</button>
+    </div>
+    <div id="voy" class="voy"><span class="voy-t">乘船去</span><div id="voyChips"></div></div>
+    <div class="float err" id="err"></div>
+    <div class="sheet" id="sheet">
+      <div class="sheet-in">
+        <button class="x" id="sheetX" aria-label="关闭">×</button>
+        <div class="row"><span class="tag" id="sTag"></span><span class="idx" id="sIdx"></span></div>
+        <h2 id="sTitle"></h2>
+        <p class="sub" id="sSub"></p>
+        <p class="desc" id="sDesc"></p>
+        <ul id="sList"></ul>
+      </div>
+    </div>
+  </div>
+  <div class="bar">
+    <button id="back" class="act" hidden>← 群岛</button>
+    <button id="spin" class="on">自动旋转</button>
+    <button id="light">夜晚</button>
+    <button id="reset" class="act">重置视角</button>
+  </div>
+</div>
+
+<script src="./three.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* ============ DOM ============ */
+var stage  = document.getElementById('stage');
+var hintEl = document.getElementById('hint');
+var errEl  = document.getElementById('err');
+var sheet  = document.getElementById('sheet');
+var appEl  = document.querySelector('.app');
+var sTag   = document.getElementById('sTag');
+var sIdx   = document.getElementById('sIdx');
+var sTitle = document.getElementById('sTitle');
+var sSub   = document.getElementById('sSub');
+var sDesc  = document.getElementById('sDesc');
+var sList  = document.getElementById('sList');
+var labelsEl = document.getElementById('labels');
+var bK = document.getElementById('bK'), bH = document.getElementById('bH');
+var backBtn = document.getElementById('back');
+var starsCv = document.getElementById('stars');
+var starsCtx = starsCv.getContext('2d');
+
+/* ---- 海报模式 ?hero=1 ---- */
+var HERO = /[?&]hero=1/.test(location.search);
+function qNum(k, d){
+  var m = location.search.match(new RegExp('[?&]' + k + '=(-?[0-9.]+)'));
+  return m ? parseFloat(m[1]) : d;
+}
+
+window.addEventListener('error', function(ev){
+  errEl.style.display = 'flex';
+  errEl.textContent = '渲染出错：' + (ev.message || '未知');
+});
+
+/* ============ 随机与几何工具 ============ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+var TAU = Math.PI*2;
+
+var _q = new THREE.Quaternion(), _e = new THREE.Euler(), _pv = new THREE.Vector3(), _ps = new THREE.Vector3();
+function M(x,y,z,rx,ry,rz,s){
+  var m = new THREE.Matrix4();
+  _e.set(rx||0, ry||0, rz||0);
+  _q.setFromEuler(_e);
+  var sc = (s===undefined)?1:s;
+  m.compose(_pv.set(x,y,z), _q, _ps.set(sc,sc,sc));
+  return m;
+}
+function mergeParts(parts){
+  var pos=[], nor=[], col=[], c=new THREE.Color();
+  for(var k=0;k<parts.length;k++){
+    var p = parts[k];
+    var g = p.g.clone();
+    if(p.m) g.applyMatrix4(p.m);
+    if(g.index) g = g.toNonIndexed();
+    var pa = g.attributes.position.array, na = g.attributes.normal ? g.attributes.normal.array : null;
+    if(!na){ g.computeVertexNormals(); na = g.attributes.normal.array; }
+    c.set(p.c); c.convertSRGBToLinear();
+    for(var i=0;i<pa.length;i+=3){
+      pos.push(pa[i],pa[i+1],pa[i+2]);
+      nor.push(na[i],na[i+1],na[i+2]);
+      col.push(c.r,c.g,c.b);
+    }
+    g.dispose();
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('normal',   new THREE.Float32BufferAttribute(nor,3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
+  return geo;
+}
+var PAINT = new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.94, metalness:0, flatShading:true});
+
+function grad(stops, t){
+  var n = stops.length;
+  if(t <= stops[0][0]) return new THREE.Color(stops[0][1]);
+  if(t >= stops[n-1][0]) return new THREE.Color(stops[n-1][1]);
+  for(var i=0;i<n-1;i++){
+    if(t >= stops[i][0] && t <= stops[i+1][0]){
+      var f = (t-stops[i][0])/(stops[i+1][0]-stops[i][0]);
+      var a = new THREE.Color(stops[i][1]), b = new THREE.Color(stops[i+1][1]);
+      return a.lerp(b, f);
+    }
+  }
+  return new THREE.Color(stops[n-1][1]);
+}
+
+/* ============ 场景 ============ */
+var scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xb9e3f1, 26, 50);
+var camera = new THREE.PerspectiveCamera(28, 1, 0.1, 120);
+var renderer = new THREE.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:HERO});
+renderer.setPixelRatio(HERO ? Math.min(Math.max(qNum('dpr', 2), 1), 3)
+                            : Math.min(window.devicePixelRatio||1, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = false;
+stage.appendChild(renderer.domElement);
+
+var hemi = new THREE.HemisphereLight(0xe8f8ff, 0xb6cd93, 0.38); scene.add(hemi);
+var key  = new THREE.DirectionalLight(0xfff8e8, 0.98);
+key.position.set(-3.6, 6.4, -2.2);
+scene.add(key);
+var fill = new THREE.DirectionalLight(0xcfebff, 0.17); fill.position.set(3.4, 2.4, 3.6); scene.add(fill);
+
+var SHADOW_DIR = new THREE.Vector2(0.854, 0.521);
+var SHADOW_LEN = 0.38;
+
+/* ============ 布景几何库（与单岛版同一套，原样复用） ============ */
+var GREEN_D = '#4a9b3e', GREEN_M = '#5cb34a', GREEN_L = '#6fc356';
+var PINK_1 = '#f3bccd', PINK_2 = '#e9a2ba', PINK_3 = '#fad2de';
+
+function geoBroad(seed){
+  var r = mulberry32(seed);
+  var h = 0.042 + r()*0.016;
+  var parts = [{g:new THREE.CylinderGeometry(0.013,0.023,h+0.012,5), m:M(0,(h+0.012)/2,0), c:'#8b6244'}];
+  var main = 0.098 + r()*0.020;
+  var cy = h + main*0.80;
+  var PAL = [
+    ['#357f31','#41903a','#4fa044'],
+    ['#3f9440','#4ea74a','#5fb855'],
+    ['#4ba342','#5cb64d','#6ec65c']
+  ][Math.floor(r()*3)];
+  parts.push({g:new THREE.SphereGeometry(main, 9, 7),
+    m:M(0, cy, 0, r()*0.3, r()*3, r()*0.3), c:PAL[1]});
+  // 两侧/两侧偏后的团块，形成蓬松树冠
+  for(var i=0;i<3;i++){
+    var a = i/3*Math.PI*2 + r()*0.7;
+    var rad = 0.056 + r()*0.020;
+    parts.push({g:new THREE.SphereGeometry(rad, 8, 6),
+      m:M(Math.cos(a)*main*0.62, cy - 0.010 + r()*0.020, Math.sin(a)*main*0.62, r(), r()*3, r()),
+      c:(i%2 ? PAL[0] : PAL[2])});
+  }
+  // 顶部小团
+  parts.push({g:new THREE.SphereGeometry(0.050 + r()*0.016, 8, 6),
+    m:M((r()-0.5)*0.030, cy + main*0.66, (r()-0.5)*0.030, r(), r()*3, r()), c:PAL[2]});
+  return mergeParts(parts);
+}
+function geoPine(seed){
+  var r = mulberry32(seed);
+  var h = 0.034 + r()*0.014;
+  var parts = [{g:new THREE.CylinderGeometry(0.010,0.015,h,5), m:M(0,h/2,0), c:'#7a5236'}];
+  var n = 3;
+  for(var i=0;i<n;i++){
+    var rad = 0.088 - i*0.022;
+    var ch  = 0.115 - i*0.020;
+    parts.push({g:new THREE.ConeGeometry(rad, ch, 7),
+      m:M(0, h + 0.036 + i*0.074, 0, 0, r()*1.2, 0),
+      c:[ '#2f7030','#3a8138','#468f40'][i%3]});
+  }
+  return mergeParts(parts);
+}
+function geoCherry(seed){
+  var r = mulberry32(seed);
+  var h = 0.046 + r()*0.014;
+  var parts = [{g:new THREE.CylinderGeometry(0.012,0.021,h+0.010,5), m:M(0,(h+0.010)/2,0, 0,0,0.05), c:'#8c6047'}];
+  var cols = [PINK_1, PINK_2, PINK_3];
+  var main = 0.078 + r()*0.016;
+  var cy = h + main*0.82;
+  parts.push({g:new THREE.SphereGeometry(main, 8, 6),
+    m:M(0, cy, 0, r()*0.3, r()*3, r()*0.3), c:PINK_1});
+  for(var i=0;i<3;i++){
+    var a = i/3*Math.PI*2 + r()*0.8;
+    var rad = 0.048 + r()*0.016;
+    parts.push({g:new THREE.SphereGeometry(rad, 7, 5),
+      m:M(Math.cos(a)*main*0.60, cy - 0.008 + r()*0.018, Math.sin(a)*main*0.60, r(), r()*3, r()),
+      c:cols[(i+1)%3]});
+  }
+  parts.push({g:new THREE.SphereGeometry(0.044 + r()*0.014, 7, 5),
+    m:M((r()-0.5)*0.026, cy + main*0.62, (r()-0.5)*0.026, r(), r()*3, r()), c:PINK_3});
+  return mergeParts(parts);
+}
+function geoPalm(seed){
+  var r = mulberry32(seed);
+  var parts = [];
+  var h1 = 0.096 + r()*0.026;
+  parts.push({g:new THREE.CylinderGeometry(0.011,0.019,h1,5), m:M(0,h1/2,0, 0,0,0.10), c:'#a07548'});
+  var lx = 0.028, ly = h1 + 0.034;
+  parts.push({g:new THREE.CylinderGeometry(0.0065,0.008,0.058,5), m:M(lx*0.5, h1+0.012, 0, 0,0,0.20), c:'#8e6339'});
+  // 外层长叶：更短更窄 + 明显下垂，俯视时才不会糊成“星芒”
+  for(var i=0;i<7;i++){
+    var a = i/7*Math.PI*2 + 0.3;
+    parts.push({g:new THREE.BoxGeometry(0.092,0.006,0.026),
+      m:M(lx+Math.cos(a)*0.040, ly-Math.abs(Math.sin(i*1.7))*0.008, Math.sin(a)*0.040, 0, -a, -0.70),
+      c:(i%2? '#2f7a34':'#3c8a3d')});
+  }
+  // 内层短叶，补出树冠体积
+  for(var j=0;j<5;j++){
+    var b = j/5*Math.PI*2 + 1.0;
+    parts.push({g:new THREE.BoxGeometry(0.058,0.006,0.022),
+      m:M(lx+Math.cos(b)*0.022, ly+0.012, Math.sin(b)*0.022, 0, -b, -0.34),
+      c:(j%2? '#3a8a3c':'#489a45')});
+  }
+  parts.push({g:new THREE.SphereGeometry(0.014,5,4), m:M(lx,ly-0.012,0.010), c:'#6b4a2c'});
+  parts.push({g:new THREE.SphereGeometry(0.014,5,4), m:M(lx+0.013,ly-0.014,-0.012), c:'#6b4a2c'});
+  return mergeParts(parts);
+}
+function geoBush(seed){
+  var r = mulberry32(seed);
+  var parts = [];
+  for(var i=0;i<3;i++){
+    var s = 0.036 + r()*0.020;
+    parts.push({g:new THREE.SphereGeometry(s, 6, 4),
+      m:M((r()-0.5)*0.068, s*0.85 + r()*0.010, (r()-0.5)*0.068, r(), r(), r()),
+      c:(i%2? '#418c36':'#55a340')});
+  }
+  return mergeParts(parts);
+}
+function geoFlowerClump(seed){
+  var r = mulberry32(seed);
+  var cols = ['#f6a8bd','#fbd35e','#fdfbf0','#f08ea9','#ffb46b'];
+  var parts = [];
+  for(var i=0;i<5;i++){
+    var x = (r()-0.5)*0.052, z = (r()-0.5)*0.052, h = 0.016 + r()*0.014;
+    parts.push({g:new THREE.CylinderGeometry(0.0020,0.0024,h,4), m:M(x,h/2,z), c:'#5e9440'});
+    parts.push({g:new THREE.IcosahedronGeometry(0.0075,0), m:M(x,h+0.003,z, r(),r(),r()), c:cols[Math.floor(r()*cols.length)]});
+  }
+  return mergeParts(parts);
+}
+function geoGrassTuft(seed){
+  var r = mulberry32(seed);
+  var parts = [];
+  for(var i=0;i<4;i++){
+    parts.push({g:new THREE.ConeGeometry(0.0055,0.026+r()*0.016,3),
+      m:M((r()-0.5)*0.028, 0.013, (r()-0.5)*0.028, (r()-0.5)*0.32, r()*3, (r()-0.5)*0.34),
+      c:(i%2? '#79c050':'#5fa73a')});
+  }
+  return mergeParts(parts);
+}
+function geoStoneTile(seed){
+  var r = mulberry32(seed);
+  var rad = 0.0175 + r()*0.0060;
+  var parts = [
+    {g:new THREE.CylinderGeometry(rad, rad*0.96, 0.009, 6), m:M(0,0.0045,0, 0, r()*3, 0), c:(r()>0.5?'#ded7c4':'#d2cab5')},
+    {g:new THREE.CylinderGeometry(rad*0.78, rad*0.78, 0.0022, 6), m:M(0,0.0096,0, 0, r()*3, 0), c:'#f0ebdc'}
+  ];
+  return mergeParts(parts);
+}
+function geoRock(seed){
+  var r = mulberry32(seed);
+  var parts = [];
+  for(var i=0;i<2;i++){
+    parts.push({g:new THREE.DodecahedronGeometry(0.020+r()*0.012,0),
+      m:M((r()-0.5)*0.026, 0.011+r()*0.006, (r()-0.5)*0.026, r(),r(),r()),
+      c:(i%2? '#a8a89c':'#bcbcb0')});
+  }
+  return mergeParts(parts);
+}
+function geoLamp(){
+  return mergeParts([
+    {g:new THREE.CylinderGeometry(0.0045,0.0065,0.100,6), m:M(0,0.050,0), c:'#f4f0e4'},
+    {g:new THREE.CylinderGeometry(0.0045,0.0065,0.012,6), m:M(0,0.006,0), c:'#cfc9b8'},
+    {g:new THREE.CylinderGeometry(0.014,0.010,0.020,6), m:M(0,0.108,0), c:'#ffe9a8'},
+    {g:new THREE.ConeGeometry(0.017,0.013,6), m:M(0,0.124,0), c:'#5d6b58'}
+  ]);
+}
+function geoBench(){
+  var parts = [
+    {g:new THREE.BoxGeometry(0.072,0.008,0.024), m:M(0,0.022,0), c:'#b98a52'},
+    {g:new THREE.BoxGeometry(0.072,0.008,0.020), m:M(0,0.044,-0.012, -0.35,0,0), c:'#c7975c'}
+  ];
+  for(var i=0;i<2;i++){
+    parts.push({g:new THREE.BoxGeometry(0.007,0.022,0.007), m:M(-0.026+i*0.052,0.011,0.008), c:'#8a6238'});
+    parts.push({g:new THREE.BoxGeometry(0.007,0.022,0.007), m:M(-0.026+i*0.052,0.011,-0.008), c:'#8a6238'});
+  }
+  return mergeParts(parts);
+}
+function geoSign(){
+  return mergeParts([
+    {g:new THREE.CylinderGeometry(0.0055,0.0055,0.056,5), m:M(0,0.028,0), c:'#8a6238'},
+    {g:new THREE.BoxGeometry(0.048,0.030,0.006), m:M(0,0.060,0, 0,0,0), c:'#c9a06a'},
+    {g:new THREE.BoxGeometry(0.040,0.004,0.007), m:M(0,0.064,0.001), c:'#e6d2ae'},
+    {g:new THREE.BoxGeometry(0.030,0.004,0.007), m:M(0,0.055,0.001), c:'#e6d2ae'}
+  ]);
+}
+function geoWoodFrame(){
+  var parts = [];
+  for(var i=0;i<2;i++){
+    parts.push({g:new THREE.CylinderGeometry(0.0045,0.0055,0.070,5), m:M(-0.026+i*0.052,0.035,0), c:'#b58a55'});
+  }
+  parts.push({g:new THREE.CylinderGeometry(0.0035,0.0035,0.056,5), m:M(0,0.062,0, 0,0,Math.PI/2), c:'#c79c63'});
+  parts.push({g:new THREE.BoxGeometry(0.040,0.026,0.003), m:M(-0.008,0.045,0, 0,0,0.1), c:'#e9dcc2'});
+  parts.push({g:new THREE.BoxGeometry(0.030,0.022,0.003), m:M(0.014,0.044,0, 0,0,-0.08), c:'#f0e6d0'});
+  return mergeParts(parts);
+}
+function geoFlagpole(){
+  return mergeParts([
+    {g:new THREE.CylinderGeometry(0.0035,0.0045,0.125,5), m:M(0,0.0625,0), c:'#e8e3d4'},
+    {g:new THREE.BoxGeometry(0.048,0.026,0.002), m:M(0.024,0.106,0, 0,0,-0.06), c:'#f2f6f8'},
+    {g:new THREE.CylinderGeometry(0.008,0.008,0.004,6), m:M(0,0.128,0), c:'#d9d3c2'}
+  ]);
+}
+function geoGate(){
+  var parts = [
+    {g:new THREE.BoxGeometry(0.026,0.098,0.026), m:M(-0.040,0.049,0), c:'#cfd2d4'},
+    {g:new THREE.BoxGeometry(0.026,0.098,0.026), m:M( 0.040,0.049,0), c:'#cfd2d4'},
+    {g:new THREE.BoxGeometry(0.108,0.018,0.030), m:M(0,0.104,0), c:'#dfe2e4'},
+    {g:new THREE.BoxGeometry(0.124,0.010,0.036), m:M(0,0.116,0), c:'#c6cacd'},
+    {g:new THREE.BoxGeometry(0.030,0.076,0.006), m:M( 0.040,0.049,0.013), c:'#b9bec2'},
+    {g:new THREE.BoxGeometry(0.030,0.076,0.006), m:M(-0.040,0.049,0.013), c:'#b9bec2'}
+  ];
+  return mergeParts(parts);
+}
+function geoWindmill(){
+  var parts = [
+    {g:new THREE.CylinderGeometry(0.036,0.046,0.086,8), m:M(0,0.043,0), c:'#e7dcc4'},
+    {g:new THREE.CylinderGeometry(0.038,0.038,0.006,8), m:M(0,0.088,0), c:'#cdbfa3'},
+    {g:new THREE.ConeGeometry(0.042,0.036,8), m:M(0,0.108,0), c:'#9c6f4b'},
+    {g:new THREE.BoxGeometry(0.016,0.022,0.004), m:M(0,0.020,0.040), c:'#8a6238'}
+  ];
+  return mergeParts(parts);
+}
+function geoWindmillBlades(){
+  var parts = [{g:new THREE.CylinderGeometry(0.005,0.005,0.012,5), m:M(0,0,0, Math.PI/2,0,0), c:'#7d5b3a'}];
+  for(var i=0;i<4;i++){
+    var a = i/4*Math.PI*2;
+    parts.push({g:new THREE.BoxGeometry(0.011,0.058,0.003),
+      m:M(Math.sin(a)*0.029, Math.cos(a)*0.029, 0.006, 0,0, -a), c:'#e2d6bb'});
+    parts.push({g:new THREE.BoxGeometry(0.014,0.010,0.004),
+      m:M(Math.sin(a)*0.055, Math.cos(a)*0.055, 0.006, 0,0, -a), c:'#f0e8d4'});
+  }
+  return mergeParts(parts);
+}
+function geoLookout(){
+  var parts = [];
+  // 红白条纹塔身，四段收分
+  var bands = [['#efe9d9',0.052,0.049],['#d4634a',0.049,0.046],['#efe9d9',0.046,0.043],['#d4634a',0.043,0.040]];
+  var y = 0;
+  for(var i=0;i<bands.length;i++){
+    var h = 0.040;
+    parts.push({g:new THREE.CylinderGeometry(bands[i][2], bands[i][1], h, 8),
+      m:M(0, y+h/2, 0), c:bands[i][0]});
+    y += h;
+  }
+  // 瞭望平台
+  parts.push({g:new THREE.CylinderGeometry(0.050,0.045,0.008,8), m:M(0,y+0.004,0), c:'#c9a06a'});
+  for(var k=0;k<8;k++){
+    var a = k/8*Math.PI*2;
+    parts.push({g:new THREE.BoxGeometry(0.004,0.016,0.004),
+      m:M(Math.cos(a)*0.043, y+0.016, Math.sin(a)*0.043), c:'#b98d58'});
+  }
+  // 顶棚：窄一点、高一点，别做成红伞
+  parts.push({g:new THREE.ConeGeometry(0.044,0.050,8), m:M(0, y+0.052, 0), c:'#d4634a'});
+  parts.push({g:new THREE.CylinderGeometry(0.004,0.004,0.014,5), m:M(0, y+0.084, 0), c:'#b98d58'});
+  return mergeParts(parts);
+}
+function geoColumn(){
+  var parts = [
+    {g:new THREE.CylinderGeometry(0.017,0.019,0.014,7), m:M(0,0.007,0), c:'#bcb6a4'},
+    {g:new THREE.CylinderGeometry(0.014,0.015,0.070,8), m:M(0,0.049,0), c:'#d6d1c1'},
+    {g:new THREE.BoxGeometry(0.032,0.006,0.032), m:M(0,0.070,0, 0,0.4,0.9), c:'#c9c3b1'}
+  ];
+  return mergeParts(parts);
+}
+function geoFence(){
+  var parts = [];
+  for(var i=0;i<4;i++){
+    parts.push({g:new THREE.CylinderGeometry(0.0035,0.0045,0.030,5), m:M(-0.030+i*0.020,0.015,0), c:'#c19a63'});
+  }
+  parts.push({g:new THREE.BoxGeometry(0.070,0.004,0.004), m:M(0,0.020,0), c:'#caa46c'});
+  parts.push({g:new THREE.BoxGeometry(0.070,0.004,0.004), m:M(0,0.011,0), c:'#c19a63'});
+  return mergeParts(parts);
+}
+function geoTorii(){
+  var parts = [
+    {g:new THREE.CylinderGeometry(0.0065,0.008,0.086,6), m:M(-0.040,0.043,0), c:'#d4684a'},
+    {g:new THREE.CylinderGeometry(0.0065,0.008,0.086,6), m:M( 0.040,0.043,0), c:'#d4684a'},
+    {g:new THREE.BoxGeometry(0.116,0.009,0.011), m:M(0,0.082,0), c:'#c95e42'},
+    {g:new THREE.BoxGeometry(0.126,0.007,0.015), m:M(0,0.090,0), c:'#e07a58'},
+    {g:new THREE.BoxGeometry(0.100,0.006,0.008), m:M(0,0.062,0), c:'#c95e42'}
+  ];
+  return mergeParts(parts);
+}
+function geoBridge(){
+  var parts = [];
+  var N = 7;
+  for(var i=0;i<N;i++){
+    var f = i/(N-1);
+    var y = 0.030 + Math.sin(f*Math.PI)*0.020;
+    parts.push({g:new THREE.BoxGeometry(0.062,0.006,0.014), m:M(0,y, -0.046 + f*0.092), c:(i%2? '#c29257':'#b3854c')});
+    if(i>0 && i<N-1){
+      parts.push({g:new THREE.CylinderGeometry(0.0035,0.0035,0.022,5), m:M(-0.030,y+0.012,-0.046+f*0.092), c:'#9c7143'});
+      parts.push({g:new THREE.CylinderGeometry(0.0035,0.0035,0.022,5), m:M( 0.030,y+0.012,-0.046+f*0.092), c:'#9c7143'});
+    }
+  }
+  parts.push({g:new THREE.BoxGeometry(0.005,0.004,0.096), m:M(-0.030,0.046,0, 0,0,0), c:'#a87c49'});
+  parts.push({g:new THREE.BoxGeometry(0.005,0.004,0.096), m:M( 0.030,0.046,0, 0,0,0), c:'#a87c49'});
+  return mergeParts(parts);
+}
+function geoHouseBlue(){
+  return mergeParts([
+    {g:new THREE.BoxGeometry(0.070,0.050,0.062), m:M(0,0.025,0), c:'#f0ece0'},
+    {g:new THREE.BoxGeometry(0.076,0.006,0.068), m:M(0,0.052,0), c:'#dcd5c4'},
+    {g:new THREE.ConeGeometry(0.058,0.040,4), m:M(0,0.075,0, 0,Math.PI/4,0), c:'#4f81b8'},
+    {g:new THREE.BoxGeometry(0.018,0.030,0.004), m:M(0,0.015,0.032), c:'#8a6238'},
+    {g:new THREE.BoxGeometry(0.014,0.014,0.004), m:M(-0.022,0.034,0.032), c:'#9fd0e8'},
+    {g:new THREE.BoxGeometry(0.014,0.014,0.004), m:M( 0.022,0.034,0.032), c:'#9fd0e8'}
+  ]);
+}
+function geoHouseWood(){
+  return mergeParts([
+    {g:new THREE.BoxGeometry(0.062,0.042,0.054), m:M(0,0.021,0), c:'#d8c4a2'},
+    {g:new THREE.ConeGeometry(0.050,0.034,4), m:M(0,0.059,0, 0,Math.PI/4,0), c:'#b1543e'},
+    {g:new THREE.BoxGeometry(0.016,0.026,0.004), m:M(0,0.013,0.028), c:'#8a6238'},
+    {g:new THREE.BoxGeometry(0.012,0.012,0.004), m:M(-0.019,0.030,0.028), c:'#9fd0e8'}
+  ]);
+}
+function geoPavilion(){
+  var parts = [
+    {g:new THREE.CylinderGeometry(0.052,0.052,0.004,8), m:M(0,0.002,0), c:'#e8e0cc'},
+    {g:new THREE.SphereGeometry(0.050, 9, 6, 0, Math.PI*2, 0, Math.PI/2), m:M(0,0.040,0), c:'#d95f4a'},
+    {g:new THREE.TorusGeometry(0.044,0.005,4,12), m:M(0,0.040,0, Math.PI/2,0,0), c:'#f6f2e8'},
+    {g:new THREE.CylinderGeometry(0.0035,0.0035,0.020,5), m:M(0,0.098,0), c:'#a87c49'}
+  ];
+  for(var i=0;i<4;i++){
+    var a = i/4*Math.PI*2 + Math.PI/4;
+    parts.push({g:new THREE.CylinderGeometry(0.0035,0.0035,0.042,5), m:M(Math.cos(a)*0.036,0.021,Math.sin(a)*0.036), c:'#e6dcc4'});
+  }
+  return mergeParts(parts);
+}
+function geoDeer(){
+  return mergeParts([
+    {g:new THREE.BoxGeometry(0.030,0.018,0.052), m:M(0,0.034,0), c:'#c08a54'},
+    {g:new THREE.BoxGeometry(0.018,0.020,0.018), m:M(0,0.050,0.026), c:'#c99a62'},
+    {g:new THREE.BoxGeometry(0.012,0.009,0.014), m:M(0,0.050,0.040), c:'#a97b4a'},
+    {g:new THREE.CylinderGeometry(0.0016,0.0016,0.016,4), m:M(-0.005,0.064,0.024, 0.3,0,0.25), c:'#8a6238'},
+    {g:new THREE.CylinderGeometry(0.0016,0.0016,0.016,4), m:M( 0.005,0.064,0.024, 0.3,0,-0.25), c:'#8a6238'},
+    {g:new THREE.CylinderGeometry(0.0028,0.0028,0.026,4), m:M(-0.009,0.013,0.018), c:'#a97b4a'},
+    {g:new THREE.CylinderGeometry(0.0028,0.0028,0.026,4), m:M( 0.009,0.013,0.018), c:'#a97b4a'},
+    {g:new THREE.CylinderGeometry(0.0028,0.0028,0.026,4), m:M(-0.009,0.013,-0.018), c:'#a97b4a'},
+    {g:new THREE.CylinderGeometry(0.0028,0.0028,0.026,4), m:M( 0.009,0.013,-0.018), c:'#a97b4a'},
+    {g:new THREE.IcosahedronGeometry(0.006,0), m:M(0,0.040,-0.030), c:'#f2ecdc'}
+  ]);
+}
+function geoSheep(){
+  return mergeParts([
+    {g:new THREE.SphereGeometry(0.020,6,5), m:M(0,0.024,0, 0,0,0, 1), c:'#f7f4ea'},
+    {g:new THREE.SphereGeometry(0.014,6,4), m:M(0,0.027,0.020), c:'#f7f4ea'},
+    {g:new THREE.BoxGeometry(0.012,0.011,0.012), m:M(0,0.026,0.032), c:'#3a3a38'},
+    {g:new THREE.CylinderGeometry(0.0026,0.0026,0.014,4), m:M(-0.008,0.007,0.010), c:'#3a3a38'},
+    {g:new THREE.CylinderGeometry(0.0026,0.0026,0.014,4), m:M( 0.008,0.007,0.010), c:'#3a3a38'},
+    {g:new THREE.CylinderGeometry(0.0026,0.0026,0.014,4), m:M(-0.008,0.007,-0.010), c:'#3a3a38'},
+    {g:new THREE.CylinderGeometry(0.0026,0.0026,0.014,4), m:M( 0.008,0.007,-0.010), c:'#3a3a38'}
+  ]);
+}
+function geoChicken(){
+  return mergeParts([
+    {g:new THREE.SphereGeometry(0.013,6,4), m:M(0,0.016,0), c:'#faf6ec'},
+    {g:new THREE.SphereGeometry(0.009,6,4), m:M(0,0.030,0.008), c:'#faf6ec'},
+    {g:new THREE.ConeGeometry(0.004,0.007,4), m:M(0,0.030,0.019, Math.PI/2,0,0), c:'#e8a33c'},
+    {g:new THREE.BoxGeometry(0.010,0.006,0.006), m:M(0,0.038,0.006), c:'#d94f3d'},
+    {g:new THREE.CylinderGeometry(0.0018,0.0018,0.012,4), m:M(-0.004,0.005,0), c:'#e8a33c'},
+    {g:new THREE.CylinderGeometry(0.0018,0.0018,0.012,4), m:M( 0.004,0.005,0), c:'#e8a33c'}
+  ]);
+}
+function geoRabbit(){
+  return mergeParts([
+    {g:new THREE.SphereGeometry(0.014,6,4), m:M(0,0.014,0), c:'#efe9dd'},
+    {g:new THREE.SphereGeometry(0.010,6,4), m:M(0,0.026,0.010), c:'#efe9dd'},
+    {g:new THREE.CylinderGeometry(0.0032,0.0038,0.016,5), m:M(-0.005,0.038,0.008, 0,0,0.16), c:'#f5f0e6'},
+    {g:new THREE.CylinderGeometry(0.0032,0.0038,0.016,5), m:M( 0.005,0.038,0.008, 0,0,-0.16), c:'#f5f0e6'},
+    {g:new THREE.IcosahedronGeometry(0.0035,0), m:M(0,0.028,0.019), c:'#e0d6c6'}
+  ]);
+}
+function geoButterfly(seed){
+  var r = mulberry32(seed);
+  var c = ['#f7c948','#f28fb5','#8fd0f0','#f2a04e'][Math.floor(r()*4)];
+  return mergeParts([
+    {g:new THREE.BoxGeometry(0.004,0.004,0.020), m:M(0,0,0), c:'#4a3a28'},
+    {g:new THREE.BoxGeometry(0.026,0.002,0.018), m:M(-0.014,0.003,0, 0,0,0.30), c:c},
+    {g:new THREE.BoxGeometry(0.026,0.002,0.018), m:M( 0.014,0.003,0, 0,0,-0.30), c:c}
+  ]);
+}
+function geoCloud(seed){
+  var r = mulberry32(seed);
+  var parts = [];
+  // 底部三团 + 顶部两团，堆成胖乎乎的一朵云（不是一排石头）
+  var spec = [
+    [-0.185, -0.010, 0.120], [0.000, 0.018, 0.155], [0.180, -0.008, 0.122],
+    [-0.070, 0.105, 0.100], [ 0.085, 0.092, 0.090],
+    [ 0.000, 0.150, 0.072]
+  ];
+  for(var i=0;i<spec.length;i++){
+    parts.push({g:new THREE.SphereGeometry(spec[i][2], 10, 8),
+      m:M(spec[i][0]+(r()-0.5)*0.022, spec[i][1]+(r()-0.5)*0.018, (r()-0.5)*0.05),
+      c:(i%2? '#ffffff':'#f1faff')});
+  }
+  return mergeParts(parts);
+}
+function geoSeagull(){
+  return mergeParts([
+    {g:new THREE.BoxGeometry(0.02,0.006,0.008), m:M(0,0,0), c:'#ffffff'},
+    {g:new THREE.BoxGeometry(0.026,0.003,0.012), m:M(-0.020,0.006,0, 0,0,0.30), c:'#f7fbfe'},
+    {g:new THREE.BoxGeometry(0.026,0.003,0.012), m:M( 0.020,0.006,0, 0,0,-0.30), c:'#f7fbfe'}
+  ]);
+}
+
+/* ============ 岛形 ============ */
+var NA = 152;
+function angDiff(a,b){var d=(a-b)%TAU;if(d>Math.PI)d-=TAU;if(d<-Math.PI)d+=TAU;return d;}
+function bump(a,c,w){var d=angDiff(a,c);return Math.exp(-(d*d)/(2*w*w));}
+
+/* 轮廓不是硬编码的：低频谐波搭出大瓣，再挖湾、推半岛。
+   低频为主是关键 —— 高次谐波会把海岸线打成锯齿，失掉手绘感 */
+function makeShape(seed, sx, sz){
+  var r = mulberry32(seed);
+  var H = [], f = 2 + Math.floor(r()*2);
+  for(var k=0;k<6;k++){
+    H.push({f:f, a:(0.108/(1+k*1.15))*(0.60+r()*0.80), p:r()*TAU});
+    f += 1 + Math.floor(r()*2);
+  }
+  var bays=[], nb = 1+Math.floor(r()*2);
+  for(var b=0;b<nb;b++) bays.push({a:r()*TAU, w:0.13+r()*0.10, d:0.10+r()*0.10});
+  var caps=[], nc = 1+Math.floor(r()*2);
+  for(var c0=0;c0<nc;c0++) caps.push({a:r()*TAU, w:0.13+r()*0.12, d:0.10+r()*0.13});
+
+  function raw(a){
+    var v=1;
+    for(var k2=0;k2<H.length;k2++) v += H[k2].a*Math.sin(H[k2].f*a+H[k2].p);
+    for(var b2=0;b2<bays.length;b2++) v -= bays[b2].d*bump(a,bays[b2].a,bays[b2].w);
+    for(var c2=0;c2<caps.length;c2++) v += caps[c2].d*bump(a,caps[c2].a,caps[c2].w);
+    return v;
+  }
+  var tab = new Float32Array(NA);
+  for(var i=0;i<NA;i++) tab[i]=raw(i/NA*TAU);
+  var t2 = tab.slice();                       // 只磨一遍：两遍会把半岛和内湾一起抹平
+  for(var i2=0;i2<NA;i2++) tab[i2] = t2[i2]*0.46 + t2[(i2-1+NA)%NA]*0.27 + t2[(i2+1)%NA]*0.27;
+  return {tab:tab, sx:sx, sz:sz, seed:seed};
+}
+function Rat(shape, a){
+  var n=((a%TAU)+TAU)%TAU;
+  var f=n/TAU*NA, i=Math.floor(f), fr=f-i;
+  return shape.tab[i%NA]*(1-fr)+shape.tab[(i+1)%NA]*fr;
+}
+
+/* 剖面：平顶草地 + 窄金边沙滩 + 陡崖收底。所有岛共用这套剖面，
+   差异交给轮廓、尺寸、山头和植被去表达 */
+var PROF = [
+  {rf:0.000,y: 0.0050},{rf:0.340,y: 0.0046},{rf:0.620,y: 0.0042},{rf:0.820,y: 0.0036},
+  {rf:0.892,y: 0.0028},{rf:0.922,y:-0.004},{rf:0.946,y:-0.018},{rf:0.966,y:-0.040},
+  {rf:0.980,y:-0.066},{rf:0.990,y:-0.102},{rf:0.999,y:-0.148},{rf:1.009,y:-0.208},
+  {rf:1.016,y:-0.286},{rf:1.015,y:-0.366},{rf:1.005,y:-0.446},{rf:0.985,y:-0.524},
+  {rf:0.953,y:-0.598},{rf:0.907,y:-0.670},{rf:0.843,y:-0.740},{rf:0.761,y:-0.806},
+  {rf:0.661,y:-0.864},{rf:0.541,y:-0.914},{rf:0.401,y:-0.952},{rf:0.241,y:-0.980},
+  {rf:0.100,y:-0.995},{rf:0.000,y:-1.000}
+];
+var TOP_N = 12;   // PROF[0..12] 是「岛心 → 外缘」，之后是侧壁
+var LAND_STOPS = [
+  [-1.000,'#9c8f7a'],[-0.860,'#a8977f'],[-0.740,'#b3a184'],[-0.640,'#bfac8b'],
+  [-0.550,'#cbb692'],[-0.470,'#d5c09a'],[-0.400,'#ddc8a1'],[-0.340,'#e4d1a8'],
+  [-0.285,'#e8d29a'],[-0.235,'#eed9a2'],[-0.190,'#f2e0ab'],[-0.150,'#f5e6b8'],
+  [-0.115,'#f7e8bd'],[-0.092,'#ebe0a4'],[-0.076,'#c8cf84'],[-0.062,'#a2bd5c'],[-0.044,'#8ecb55'],
+  [-0.024,'#82bf50'],[-0.008,'#89c755'],[ 0.000,'#91cd5c'],[ 0.006,'#9bd468']
+];
+var WATER_Y = -0.300;
+
+function profTopY(rf){
+  if(rf <= 0) return PROF[0].y;
+  for(var i=0;i<TOP_N;i++){
+    if(rf <= PROF[i+1].rf){
+      var f = (rf-PROF[i].rf)/(PROF[i+1].rf-PROF[i].rf);
+      return PROF[i].y + (PROF[i+1].y-PROF[i].y)*f;
+    }
+  }
+  return PROF[TOP_N].y;
+}
+/* 山头：只抬岛心附近，边缘不动，所以海岸线完全不受影响 */
+function hillAt(rf, cfg){
+  if(!cfg.hill) return 0;
+  var k = rf/0.62;
+  if(k >= 1) return 0;
+  return cfg.hill * Math.pow(Math.cos(k*Math.PI*0.5), 1.6);
+}
+function topY(shape, cfg, x, z){
+  var u = x/shape.sx, v = z/shape.sz;
+  var rf = Math.sqrt(u*u+v*v)/Rat(shape, Math.atan2(v,u));
+  if(rf > 0.900) return null;              // 只往草地上摆，沙滩留给礁石
+  return profTopY(rf) + hillAt(rf, cfg);
+}
+
+/* ============ 地形网格 ============ */
+function buildLand(shape, cfg){
+  var M2 = PROF.length;
+  var pos=[], col=[], idx=[];
+  var c = new THREE.Color(), tint = new THREE.Color();
+  var nz = mulberry32(cfg.seed*7+13);
+  var gset = cfg.grass || 1;      // 草地明度：>1 偏亮，<1 偏深
+  var gt = cfg.grassTint || [1,1,1];   // 草地色偏：光调亮度做不出气候差异，得真的换色
+
+  for(var i=0;i<NA;i++){
+    var a = i/NA*TAU;
+    var R0 = shape.tab[i];
+    for(var m=0;m<M2;m++){
+      var pr = PROF[m];
+      var r = R0*pr.rf;
+      var y = pr.y;
+      if(pr.rf < 0.90) y += hillAt(pr.rf, cfg) + (nz()-0.5)*0.0022*(1-pr.rf/0.90);
+      var px = Math.cos(a)*r*shape.sx, pz = Math.sin(a)*r*shape.sz;
+      pos.push(px, y, pz);
+      c.copy(grad(LAND_STOPS, y));
+      if(y > -0.05){
+        var blot = Math.sin(px*2.6+pz*1.9)*0.085
+                 + Math.sin(px*6.3)*Math.cos(pz*5.1)*0.070
+                 + Math.sin(px*13.7+pz*9.4)*0.038
+                 + Math.sin(pz*21.5-px*4.2)*0.020
+                 + (nz()-0.5)*0.022;
+        if(pr.rf > 0.72) blot -= (pr.rf-0.72)/0.22 * 0.10;
+        var t = (1 + blot) * gset;
+        tint.setRGB(t*gt[0], t*gt[1], t*gt[2]);
+        c.multiply(tint);
+      }
+      c.convertSRGBToLinear();
+      col.push(c.r,c.g,c.b);
+    }
+  }
+  for(var i2=0;i2<NA;i2++){
+    var i3 = (i2+1)%NA;
+    for(var m2=0;m2<M2-1;m2++){
+      var A = i2*M2+m2, B = i3*M2+m2, C = i2*M2+m2+1, D = i3*M2+m2+1;
+      idx.push(A,B,C, B,D,C);
+    }
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  var mat = new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.95, metalness:0, flatShading:true});
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  return mesh;
+}
+
+/* ============ 散布：同几何合成 InstancedMesh ============
+   单岛版每棵树都是独立 mesh，七座岛照搬会有两千多个 drawcall。
+   这里按几何分桶，一桶一个 InstancedMesh，七座岛压在两百以内 */
+function makeInstances(geo, items, mat){
+  if(!items.length) return null;
+  var im = new THREE.InstancedMesh(geo, mat || PAINT, items.length);
+  var m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(),
+      v = new THREE.Vector3(), sv = new THREE.Vector3();
+  for(var i=0;i<items.length;i++){
+    e.set(0, items[i].rot, 0); q.setFromEuler(e);
+    v.set(items[i].x, items[i].y, items[i].z);
+    sv.setScalar(items[i].s);
+    m4.compose(v, q, sv);
+    im.setMatrixAt(i, m4);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  im.castShadow = true; im.receiveShadow = true;
+  im.frustumCulled = false;
+  return im;
+}
+
+var GEO = {
+  pine:   [geoPine(404), geoPine(717)],
+  broad:  [geoBroad(101), geoBroad(202), geoBroad(303), geoBroad(404), geoBroad(505)],
+  cherry: [geoCherry(505), geoCherry(606)],
+  palm:   [geoPalm(707), geoPalm(808)],
+  bush:   [geoBush(909), geoBush(111)],
+  flower: [geoFlowerClump(121), geoFlowerClump(131), geoFlowerClump(141)],
+  grass:  [geoGrassTuft(151), geoGrassTuft(161)],
+  rock:   [geoRock(171)],
+  // 石板：铺成一条小径，岛才有「有人住」的痕迹
+  tile:   [geoStoneTile(11), geoStoneTile(22), geoStoneTile(33)],
+  // 中层物件：路灯、长椅、栅栏。原版岛耐看的关键是这些，不是树多
+  lamp:   [geoLamp()],
+  bench:  [geoBench()],
+  fence:  [geoFence()],
+  column: [geoColumn()],
+  sign:   [geoSign()]
+};
+/* 石板单独一个材质：几何里的顶点色是烘死的（接近白），
+   不换材质就是一串白点铺在草地上，整座岛都被它抢掉 */
+var MAT_TILE = new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.97, metalness:0,
+  flatShading:true, color:0x8b8474});
+var MAT_BY_KIND = {tile: MAT_TILE};
+
+var LANDMARK_GEO = {
+  windmill:  geoWindmill(),
+  gate:      geoGate(),
+  torii:     geoTorii(),
+  houseBlue: geoHouseBlue(),
+  houseWood: geoHouseWood(),
+  pavilion:  geoPavilion(),
+  lookout:   geoLookout(),
+  bench:     geoBench(),
+  sign:      geoSign(),
+  lamp:      geoLamp(),
+  column:    geoColumn(),
+  bridge:    geoBridge(),
+  fence:     geoFence()
+};
+
+/* 每座岛的气质由这张配比表决定：松多的森严、樱多的绚烂、石多的荒芜 */
+function scatterIsle(shape, cfg, grp, rnd){
+  var buckets = {};
+  for(var k2 in GEO){
+    buckets[k2] = [];
+    for(var j=0;j<GEO[k2].length;j++) buckets[k2].push([]);
+  }
+  var shadows = [], placed = [];
+  var TREE_SC = 0.86;
+
+  function freeAt(x, z, rad){
+    for(var i=0;i<placed.length;i++){
+      var p = placed[i];
+      var dx = x-p.x, dz = z-p.z;
+      if(dx*dx+dz*dz < (rad+p.r)*(rad+p.r)) return false;
+    }
+    return true;
+  }
+  function occupy(x,z,r){ placed.push({x:x,z:z,r:r}); }
+
+  function put(kind, x, z, s, opt){
+    opt = opt || {};
+    var y = topY(shape, cfg, x, z);
+    if(y === null) return false;
+    var rad = (opt.gap || 0.05);
+    if(!freeAt(x, z, rad*0.85)) return false;
+    var gi = Math.floor(rnd()*buckets[kind].length);
+    buckets[kind][gi].push({x:x, y:y, z:z, rot:(opt.rot !== undefined ? opt.rot : rnd()*TAU), s:s});
+    occupy(x, z, rad);
+    if(opt.shadow !== false) shadows.push({x:x, z:z, r:(opt.sr||0.030)*s, h:(opt.hh||0.10)*s});
+    return true;
+  }
+
+  function randIn(minR, maxR){
+    for(var t=0;t<120;t++){
+      var a = rnd()*TAU;
+      var uv = Math.sqrt(minR*minR + rnd()*(maxR*maxR-minR*minR));
+      if(uv > Rat(shape,a)*0.895) continue;
+      return {x:Math.cos(a)*uv*shape.sx, z:Math.sin(a)*uv*shape.sz};
+    }
+    return null;
+  }
+
+  /* ---- 先铺石板小径：从地标通向岛缘 ----
+     路是最便宜也最有效的「人味」：它把散落的物件串成一个场所 */
+  var lx = cfg.landmark.u*shape.sx, lz = cfg.landmark.v*shape.sz;
+  var pa = cfg.pathAngle !== undefined ? cfg.pathAngle : rnd()*TAU;
+  var edgeR = Rat(shape, pa);
+  var ex = Math.cos(pa)*edgeR*0.845*shape.sx, ez = Math.sin(pa)*edgeR*0.845*shape.sz;
+  var PN = 26;
+  for(var pi=0; pi<PN; pi++){
+    var f = pi/(PN-1);
+    var bend = Math.sin(f*Math.PI)*0.20;
+    var px = lx + (ex-lx)*f - Math.sin(pa)*bend;
+    var pz = lz + (ez-lz)*f + Math.cos(pa)*bend;
+    // 两头收窄：路口散几块、近地标铺密一点，像被人踩出来的
+    if(pi > 1 && pi < PN-1 && rnd() < 0.14) continue;
+    var ty = topY(shape, cfg, px, pz);
+    if(ty === null) continue;
+    var ti = Math.floor(rnd()*buckets.tile.length);
+    buckets.tile[ti].push({x:px, y:ty+0.001, z:pz, rot:rnd()*TAU, s:1.25+rnd()*0.40});
+    occupy(px, pz, 0.026);
+  }
+
+  /* ---- 中层物件沿路摆：路灯 + 长椅 + 木牌 ----
+     这些不占地标的位置，但决定了岛「像不像有人住」 */
+  var pathPts = [];
+  for(var pp=0; pp<5; pp++){
+    var pf = 0.18 + pp*0.16;
+    pathPts.push({x: lx + (ex-lx)*pf - Math.sin(pa)*Math.sin(pf*Math.PI)*0.20,
+                  z: lz + (ez-lz)*pf + Math.cos(pa)*Math.sin(pf*Math.PI)*0.20});
+  }
+  // 路灯：路边两盏，错开左右
+  for(var li=0; li<2; li++){
+    var base = pathPts[li*2+1];
+    if(!base) continue;
+    var side = (li%2 ? 1 : -1)*0.070;
+    put('lamp', base.x + Math.cos(pa)*side, base.z + Math.sin(pa)*side, 2.30,
+        {gap:0.030, sr:0.020, hh:0.13});
+  }
+  // 长椅：朝岛心坐
+  var bpt = pathPts[2];
+  if(bpt) put('bench', bpt.x - Math.cos(pa)*0.095, bpt.z - Math.sin(pa)*0.095, 2.10,
+              {gap:0.042, sr:0.034, hh:0.06, rot:pa+Math.PI});
+  // 木牌：路口处，指示方向
+  put('sign', ex*0.94, ez*0.94, 2.20, {gap:0.034, sr:0.022, hh:0.11, rot:pa+2.2});
+
+  /* ---- 林心：树聚成几片林子，中间留大片空草坪 ----
+     均匀撒点是最容易让岛变「假」的做法 */
+  var GROVES = [];
+  var nG = cfg.groves || 3;
+  for(var gi2=0; gi2<nG; gi2++){
+    for(var tr=0; tr<26; tr++){
+      var gp = randIn(0.16, 0.72);
+      if(!gp) continue;
+      var okg = true;
+      for(var q=0;q<GROVES.length;q++){
+        var ddx = gp.x-GROVES[q].x, ddz = gp.z-GROVES[q].z;
+        if(ddx*ddx+ddz*ddz < 0.40*0.40){ okg = false; break; }
+      }
+      if(!okg) continue;
+      GROVES.push({x:gp.x, z:gp.z, r:0.24 + rnd()*0.22});
+      break;
+    }
+  }
+  function inGrove(x, z){
+    for(var i=0;i<GROVES.length;i++){
+      var g = GROVES[i];
+      var dx = x-g.x, dz = z-g.z;
+      if(dx*dx+dz*dz < g.r*g.r) return g;
+    }
+    return null;
+  }
+  // 岩堆：石头也要成片，散着放像撒芝麻
+  var DUNES = [];
+  for(var di=0; di<2; di++){
+    var dp = randIn(0.22, 0.78);
+    if(dp) DUNES.push({x:dp.x, z:dp.z, r:0.18+rnd()*0.18});
+  }
+  function inDune(x, z){
+    for(var i=0;i<DUNES.length;i++){
+      var g = DUNES[i];
+      var dx = x-g.x, dz = z-g.z;
+      if(dx*dx+dz*dz < g.r*g.r) return true;
+    }
+    return false;
+  }
+
+  var V = cfg.veg;
+  var plan = [
+    {k:'pine',   n:V.pine,   gap:0.105, sr:0.086, s:[0.94,1.34], minR:0.18, maxR:0.84, hh:0.30},
+    {k:'broad',  n:V.broad,  gap:0.112, sr:0.100, s:[0.88,1.32], minR:0.16, maxR:0.84, hh:0.28},
+    {k:'cherry', n:V.cherry, gap:0.110, sr:0.096, s:[0.94,1.22], minR:0.16, maxR:0.84, hh:0.26},
+    {k:'palm',   n:V.palm,   gap:0.128, sr:0.072, s:[0.90,1.18], minR:0.42, maxR:0.86, hh:0.28},
+    {k:'bush',   n:V.bush,   gap:0.082, sr:0.046, s:[0.90,1.35], minR:0.04, maxR:0.92, hh:0.14},
+    {k:'flower', n:V.flower, gap:0.034, sr:0.020, s:[0.95,1.40], minR:0.04, maxR:0.93, hh:0.05},
+    {k:'grass',  n:V.grass,  gap:0.028, sr:0.014, s:[0.95,1.40], minR:0.03, maxR:0.94, hh:0.04},
+    {k:'rock',   n:V.rock,   gap:0.052, sr:0.030, s:[0.95,1.40], minR:0.10, maxR:0.94, hh:0.06}
+  ];
+  var isTree = {pine:1, broad:1, cherry:1, palm:1};
+
+  for(var i=0;i<plan.length;i++){
+    var pl = plan[i];
+    var made = 0, tries = 0;
+    while(made < pl.n && tries < pl.n*90){
+      tries++;
+      var pos = null;
+      if(isTree[pl.k] && GROVES.length && rnd() < 0.88){
+        // 从某个林心附近长出来
+        var gv = GROVES[Math.floor(rnd()*GROVES.length)];
+        var ga = rnd()*TAU, gr = Math.sqrt(rnd())*gv.r;
+        pos = {x: gv.x + Math.cos(ga)*gr, z: gv.z + Math.sin(ga)*gr};
+      } else if(pl.k === 'rock' && DUNES.length && rnd() < 0.8){
+        var du = DUNES[Math.floor(rnd()*DUNES.length)];
+        var da = rnd()*TAU, dr = Math.sqrt(rnd())*du.r;
+        pos = {x: du.x + Math.cos(da)*dr, z: du.z + Math.sin(da)*dr};
+      } else {
+        pos = randIn(pl.minR, pl.maxR);
+      }
+      if(!pos) continue;
+      // 林心外的树稀一点：林子边缘自然过渡，不是硬切的圆
+      var s = pl.s[0] + rnd()*(pl.s[1]-pl.s[0]);
+      var gp2 = pl.gap;
+      if(isTree[pl.k]){ s *= TREE_SC; gp2 *= TREE_SC; }
+      if(put(pl.k, pos.x, pos.z, s, {gap:gp2, sr:pl.sr, hh:pl.hh})) made++;
+    }
+  }
+
+  // 沙滩边的礁石：贴岛缘一圈，把陆地和水分开
+  var edgeN = 0;
+  for(var e=0;e<200 && edgeN<12;e++){
+    var ea = rnd()*TAU;
+    var euv = Rat(shape, ea)*(0.855 + rnd()*0.05);
+    var eex = Math.cos(ea)*euv*shape.sx, eez = Math.sin(ea)*euv*shape.sz;
+    var y2 = topY(shape, cfg, eex, eez);
+    if(y2 === null) continue;
+    if(!freeAt(eex, eez, 0.028)) continue;
+    var gi3 = Math.floor(rnd()*buckets.rock.length);
+    buckets.rock[gi3].push({x:eex, y:y2, z:eez, rot:rnd()*TAU, s:0.95+rnd()*0.5});
+    occupy(eex, eez, 0.030);
+    shadows.push({x:eex, z:eez, r:0.028, h:0.055});
+    edgeN++;
+  }
+
+  var meshes = [], detail = [];
+  var SMALL = {lamp:1, bench:1, sign:1};   // 这些只有走近才看得清
+  for(var bk in buckets){
+    for(var bj=0;bj<buckets[bk].length;bj++){
+      var im = makeInstances(GEO[bk][bj], buckets[bk][bj], MAT_BY_KIND[bk]);
+      if(im){
+        grp.add(im);
+        meshes.push(im);
+        if(SMALL[bk]) detail.push(im);
+      }
+    }
+  }
+  return {shadows:shadows, meshes:meshes, detail:detail};
+}
+
+/* ============ 假投影：程序化椭圆，叠三层做出柔边 ============ */
+function buildShadows(specs, grp, cfg){
+  if(!specs.length) return;
+  var groundOf = function(x,z){
+    var y = topY(cfg.shape, cfg, x, z);
+    return y === null ? profTopY(0.88) : y;
+  };
+  var SEG = 10;
+  var c = new THREE.Color('#1d4414'); c.convertSRGBToLinear();
+  var ang = Math.atan2(SHADOW_DIR.y, SHADOW_DIR.x);
+  var ca = Math.cos(ang), sa = Math.sin(ang);
+  var LAYERS = [{k:1.00, op:0.13},{k:0.76, op:0.17},{k:0.50, op:0.22}];
+  for(var L=0;L<LAYERS.length;L++){
+    var pos=[], col=[], idx=[], base=0;
+    for(var i=0;i<specs.length;i++){
+      var sp = specs[i];
+      var len = sp.h * SHADOW_LEN;
+      var rx = (sp.r + len*0.62) * LAYERS[L].k;
+      var rz = (sp.r * 1.10)      * LAYERS[L].k;
+      var cx = sp.x + SHADOW_DIR.x * len * 0.52;
+      var cz = sp.z + SHADOW_DIR.y * len * 0.52;
+      var ly = groundOf(cx, cz) + 0.0042 + L*0.0004;
+      pos.push(cx, ly, cz); col.push(c.r,c.g,c.b);
+      for(var s2=0;s2<SEG;s2++){
+        var a2 = s2/SEG*TAU;
+        var lx = Math.cos(a2)*rx, lz = Math.sin(a2)*rz;
+        pos.push(cx + lx*ca - lz*sa, ly, cz + lx*sa + lz*ca);
+        col.push(c.r,c.g,c.b);
+      }
+      for(var s3=1;s3<=SEG;s3++){
+        var nx = (s3===SEG) ? 1 : s3+1;
+        idx.push(base, base+nx, base+s3);
+      }
+      base += SEG+1;
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+    g.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
+    g.setIndex(idx);
+    var m = new THREE.MeshBasicMaterial({vertexColors:true, transparent:true,
+      opacity:LAYERS[L].op, depthWrite:false, side:THREE.DoubleSide});
+    var mesh = new THREE.Mesh(g, m);
+    mesh.renderOrder = 1 + L;
+    grp.add(mesh);
+  }
+}
+
+/* ============ 浪花环带 ============ */
+function buildFoam(shape, rf0, rf1, color, op){
+  var pos=[], idx=[], N=96, M3=2;
+  for(var i=0;i<N;i++){
+    var a = i/N*TAU;
+    var R0 = Rat(shape, a);
+    for(var m=0;m<M3;m++){
+      var rf = rf0 + (rf1-rf0)*(m/(M3-1));
+      var r = R0*rf;
+      var yy = WATER_Y + 0.004 + Math.sin(a*9)*0.0022 + Math.cos(a*5+1)*0.0016;
+      pos.push(Math.cos(a)*r*shape.sx, yy, Math.sin(a)*r*shape.sz);
+    }
+  }
+  for(var i2=0;i2<N;i2++){
+    var i3=(i2+1)%N;
+    for(var m2=0;m2<M3-1;m2++){
+      var A=i2*M3+m2,B=i3*M3+m2,C=i2*M3+m2+1,D=i3*M3+m2+1;
+      idx.push(A,B,C,B,D,C);
+    }
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  var mat = new THREE.MeshBasicMaterial({color:color, transparent:true, opacity:op, depthWrite:false});
+  return new THREE.Mesh(geo, mat);
+}
+
+/* ============ 岛缘浅滩环带 ============ */
+function buildShelf(shape){
+  var N = 132, M = 9;
+  var pos=[], col=[], idx=[];
+  var cA = new THREE.Color(), cB = new THREE.Color();
+  function sample(f, out){
+    for(var k=0;k<SHELF_STOPS.length-1;k++){
+      var A = SHELF_STOPS[k], B = SHELF_STOPS[k+1];
+      if(f >= A[0] && f <= B[0]){
+        var t = (f-A[0])/(B[0]-A[0]);
+        cA.set(A[1]); cB.set(B[1]);
+        out.c.copy(cA).lerp(cB, t).convertSRGBToLinear();
+        out.a = A[2] + (B[2]-A[2])*t;
+        return;
+      }
+    }
+    out.c.set(SHELF_STOPS[SHELF_STOPS.length-1][1]).convertSRGBToLinear();
+    out.a = 0;
+  }
+  var tmp = {c:new THREE.Color(), a:0};
+  for(var i=0;i<N;i++){
+    var a = i/N*TAU;
+    var R0 = Rat(shape, a);
+    for(var m=0;m<M;m++){
+      // 非线性铺开：贴着岛缘的地方落更多层，渐变才不吃紧
+      var f = m/(M-1);
+      var rf = 1.0 + f*0.50;
+      var r = R0*rf;
+      var y = WATER_Y + 0.008 + Math.sin(a*7)*0.0016;
+      pos.push(Math.cos(a)*r*shape.sx, y, Math.sin(a)*r*shape.sz);
+      sample(f, tmp);
+      col.push(tmp.c.r, tmp.c.g, tmp.c.b, tmp.a);
+    }
+  }
+  for(var i2=0;i2<N;i2++){
+    var i3=(i2+1)%N;
+    for(var m2=0;m2<M-1;m2++){
+      var A2=i2*M+m2,B2=i3*M+m2,C2=i2*M+m2+1,D2=i3*M+m2+1;
+      idx.push(A2,B2,C2,B2,D2,C2);
+    }
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col,4));
+  geo.setIndex(idx);
+  var mat = new THREE.MeshBasicMaterial({vertexColors:true, transparent:true,
+    depthWrite:false, side:THREE.DoubleSide});
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 2;
+  return mesh;
+}
+
+/* ============ 海：颜色按「离最近岛缘的距离」算 ============
+   不能再用离原点的半径 —— 七座岛各有各的浅滩，统一径向渐变会全错 */
+var SEA_STOPS = [
+  [0.000,'#4ed4cb'],[0.030,'#35c2c2'],[0.080,'#28b0b6'],[0.180,'#1f9cab'],
+  [0.360,'#1a8a9f'],[0.700,'#16748f'],[1.400,'#1a6283'],[3.000,'#3d7d9c'],[6.500,'#8fbcd0']
+];
+/* 岛缘浅滩：海面一格 0.4 世界单位，比浅滩本身还宽，颜色会被插值糊成一圈光晕。
+   所以浅滩单独做成贴岛轮廓的环带网格，精度由环的段数决定，不受网格密度限制 */
+var SHELF_STOPS = [
+  [0.00, '#c8f2ea', 0.78],
+  [0.16, '#63d6c8', 0.56],
+  [0.40, '#2ab5bb', 0.32],
+  [0.72, '#1b90a6', 0.11],
+  [1.00, '#187e9a', 0.00]
+];
+function buildSea(isles){
+  var RAD = 30, SEG = 116;
+  var geo = new THREE.PlaneGeometry(RAD*2, RAD*2, SEG, SEG);
+  geo.rotateX(-Math.PI/2);
+  var p = geo.attributes.position;
+  var col = new Float32Array(p.count*3);
+  var c = new THREE.Color(), nz = mulberry32(4242);
+  var n = isles.length;
+  for(var i=0;i<p.count;i++){
+    var x = p.getX(i), z = p.getZ(i);
+    var best = 1e9;
+    for(var k=0;k<n;k++){
+      var is = isles[k];
+      var dx = (x-is.x)/is.shape.sx, dz = (z-is.z)/is.shape.sz;
+      var uv = Math.sqrt(dx*dx+dz*dz);
+      var Rl = Rat(is.shape, Math.atan2(dz,dx));
+      var t = (uv - Rl)/Rl;
+      if(t < best) best = t;
+    }
+    // 浅滩环按岛半径计宽，群岛尺度下会拉成一圈圈白雾；压到 0.6 才收得住
+    var tt = best < 0 ? 0 : best*0.52;
+    c.copy(grad(SEA_STOPS, tt));
+    var k2 = 0.985 + nz()*0.03;
+    c.multiplyScalar(k2);
+    c.convertSRGBToLinear();
+    col[i*3] = c.r; col[i*3+1] = c.g; col[i*3+2] = c.b;
+    p.setY(i, WATER_Y + Math.sin(tt*7.5)*0.004 + Math.cos(x*3.1+z*2.7)*0.003);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+  geo.computeVertexNormals();
+  var mat = new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.72, metalness:0.0});
+  var mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/* ============ 作品文案 ============ */
+var WORKS = {
+  gate: {
+    tag:'入口', title:'群岛',
+    sub:'每一座岛，是一个做过的东西',
+    desc:'这里是入口。脚下这座是主岛，海上还浮着六座——每座岛对应一件做过的东西，点岛进去看。岛形、海岸、草木、海色全部由代码生成，没有一张贴图、没有一份外部模型。',
+    list:['七座岛各自生成轮廓：低频谐波 + 挖湾 + 推半岛','同几何的树草合成实例化渲染，七百多个物件压在两百个绘制批次内','昼夜两套光照：夜里点灯、有星有月']
+  },
+  houseBlue: {
+    tag:'内容', title:'Robin-ai 聚变',
+    sub:'AI 模型 · 智能汽车 · 新硬件拆解',
+    desc:'科技内容号。只写真正上手玩过、拆过的东西，不做通稿搬运。',
+    list:['选题：新模型实测、车机交互、硬件拆解','形态：长图文为主，短视频二次分发']
+  },
+  houseWood: {
+    tag:'数据', title:'耐药监测看板',
+    sub:'WHONET 检验数据 → 可点的图表',
+    desc:'把检验科导出的 WHONET 报表变成能筛、能比、能下钻的看板，替代只能看的静态图。',
+    list:['点击筛选 + 悬停提示，一屏看完趋势','按科室 / 菌种 / 标本类型下钻','全国与区域两级耐药率对照']
+  },
+  pavilion: {
+    tag:'团队', title:'OASIS',
+    sub:'团队 AI 作品展示门户',
+    desc:'游戏化主题的作品门户。一个单文件、零依赖的 HTML，打开就能玩。',
+    list:['16 名成员，3 款可玩小游戏','内置 GAMES / MEMBERS 配置，加人加作品不动结构','用《头号玩家》的空间感做底']
+  },
+  windmill: {
+    tag:'游戏', title:'ASHEN CROWN 灰烬王冠',
+    sub:'暗黑奇幻 · 魂系',
+    desc:'独立游戏概念设计。视觉往油画质感走，压迫感优先于华丽。这座岛被刻意做成荒的：石头多、树少、地势抬高，和别处不是一个气候。',
+    list:['参考《Elden Ring》《Dark Souls》的光与压迫','美术设定与核心玩法同步推进','先立世界观，再谈玩法']
+  },
+  lookout: {
+    tag:'关于', title:'瞭望与补给',
+    sub:'医药市场准入 · 数据 · 内容',
+    desc:'白天做医院准入策略与检验数据分析，晚上搭岛。这座岛是两个身份之间的中间地带。',
+    list:['血制品准入：白蛋白、FC、PCC','微生物检验数据与耐药监测','技术与内容：模型、车、硬件']
+  },
+  torii: {
+    tag:'空位', title:'还没有名字',
+    sub:'下一座岛正在长',
+    desc:'这块地留着。等下一个东西做出来，就把它种在这儿——门已经立好了。',
+    list:['预留位，尚未开工']
+  }
+};
+var WORK_SEQ = ['gate','houseBlue','houseWood','pavilion','windmill','lookout','torii'];
+var NAME_BY_KIND = {
+  windmill:'风车', gate:'石门', torii:'鸟居', houseBlue:'蓝顶小屋', houseWood:'木屋',
+  pavilion:'凉亭', lookout:'瞭望塔'
+};
+
+/* ============ 群岛配置 ============
+   每座岛:位置、轮廓种子、比例、山头、草地色、植被配比、地标
+   气质差异全在这张表里 —— 同一套生成器，长出七种气候 */
+var ISLES_CFG = [
+  { id:'gate', x: 0.00, z: 0.00, seed: 7711, sx:1.34, sz:0.96,
+    hill:0.000, grass:1.00,
+    veg:{pine:4, broad:14, cherry:7, palm:2, bush:12, flower:34, grass:44, rock:5},
+    pathAngle:1.15, groves:3,
+    landmark:{kind:'gate', u:0.0, v:-0.06, rot:0.12, sc:1.52} },
+
+  { id:'houseBlue', x: 2.60, z:-3.60, seed: 2201, sx:1.24, sz:0.88,
+    hill:0.010, grass:1.03,
+    veg:{pine:2, broad:7, cherry:2, palm:7, bush:11, flower:26, grass:36, rock:8},
+    pathAngle:-0.55, groves:2,
+    landmark:{kind:'houseBlue', u:-0.10, v:0.10, rot:-0.35, sc:1.52} },
+
+  { id:'windmill', x:-1.20, z:-4.20, seed: 5503, sx:1.28, sz:0.90,
+    hill:0.105, grass:0.97, grassTint:[1.06, 1.00, 0.87],
+    veg:{pine:7, broad:4, cherry:1, palm:0, bush:6, flower:7, grass:16, rock:22},
+    pathAngle:2.35, groves:2,
+    landmark:{kind:'windmill', u:0.02, v:0.02, rot:0.25, sc:1.52} },
+
+  { id:'lookout', x:-4.30, z:-1.60, seed: 4404, sx:1.38, sz:0.76,
+    hill:0.075, grass:0.96, grassTint:[0.98, 0.99, 1.02],
+    veg:{pine:11, broad:3, cherry:0, palm:1, bush:9, flower:12, grass:26, rock:12},
+    pathAngle:0.32, groves:3,
+    landmark:{kind:'lookout', u:-0.16, v:0.0, rot:0.5, sc:1.52} },
+
+  { id:'houseWood', x:-3.20, z: 2.00, seed: 3305, sx:1.16, sz:1.00,
+    hill:0.020, grass:0.94, grassTint:[0.95, 0.99, 0.97],
+    veg:{pine:14, broad:5, cherry:0, palm:0, bush:14, flower:14, grass:30, rock:7},
+    pathAngle:-1.95, groves:4,
+    landmark:{kind:'houseWood', u:0.06, v:0.04, rot:0.9, sc:1.52} },
+
+  { id:'pavilion', x: 0.60, z: 4.00, seed: 6606, sx:1.22, sz:0.98,
+    hill:0.000, grass:1.04, grassTint:[1.02, 1.00, 1.00],
+    veg:{pine:1, broad:6, cherry:13, palm:3, bush:9, flower:52, grass:40, rock:3},
+    pathAngle:1.85, groves:3,
+    landmark:{kind:'pavilion', u:-0.04, v:-0.06, rot:-0.2, sc:1.52} },
+
+  { id:'torii', x: 4.20, z:-0.60, seed: 9907, sx:1.04, sz:0.84,
+    hill:0.000, grass:1.01,
+    veg:{pine:2, broad:3, cherry:0, palm:4, bush:5, flower:10, grass:22, rock:6},
+    pathAngle:0.90, groves:2,
+    landmark:{kind:'torii', u:0.0, v:0.02, rot:0.0, sc:1.52} }
+];
+
+/* ============ 圆环标记贴图 ============ */
+function makeDotTexture(){
+  var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  var c2 = cv.getContext('2d');
+  // 深色粗描边 + 白色细环：单放白环压在浅绿草地上等于没画
+  c2.strokeStyle = 'rgba(16,40,34,0.30)';
+  c2.lineWidth = 10;
+  c2.beginPath(); c2.arc(32,32,20,0,TAU); c2.stroke();
+  c2.strokeStyle = 'rgba(255,255,255,0.98)';
+  c2.lineWidth = 3.6;
+  c2.beginPath(); c2.arc(32,32,20,0,TAU); c2.stroke();
+  c2.fillStyle = 'rgba(255,255,255,0.96)';
+  c2.beginPath(); c2.arc(32,32,3.6,0,TAU); c2.fill();
+  return new THREE.CanvasTexture(cv);
+}
+var DOT_TEX = makeDotTexture();
+var DOT_MAT = new THREE.SpriteMaterial({map:DOT_TEX, transparent:true, opacity:0.6,
+  depthWrite:false, color:0xfff2d2});
+function makeDot(){
+  var sp = new THREE.Sprite(DOT_MAT);
+  sp.scale.setScalar(0.105);
+  sp.renderOrder = 12;
+  return sp;
+}
+
+/* ============ 建岛 ============ */
+var isles = [];          // {cfg, shape, grp, x, z, label, dot, lm}
+var allLand = [];        // 用于拾取
+var allLm = [];
+var archipelago = new THREE.Group();
+scene.add(archipelago);
+
+ISLES_CFG.forEach(function(cfg, idx){
+  var shape = makeShape(cfg.seed, cfg.sx, cfg.sz);
+  cfg.shape = shape;
+  var rnd = mulberry32(cfg.seed*31 + 7);
+
+  var grp = new THREE.Group();
+  grp.position.set(cfg.x, 0, cfg.z);
+  archipelago.add(grp);
+
+  // 地形
+  var land = buildLand(shape, cfg);
+  land.userData = {isleId: cfg.id};
+  grp.add(land);
+  allLand.push(land);
+
+  // 地标
+  var lmCfg = cfg.landmark;
+  var lx = lmCfg.u*shape.sx, lz = lmCfg.v*shape.sz;
+  var ly = topY(shape, cfg, lx, lz);
+  if(ly === null) ly = profTopY(0.4);
+  var lm = new THREE.Mesh(LANDMARK_GEO[lmCfg.kind], PAINT);
+  lm.position.set(lx, ly, lz);
+  lm.rotation.y = lmCfg.rot;
+  lm.scale.setScalar(lmCfg.sc);
+  lm.castShadow = true; lm.receiveShadow = true;
+  lm.userData = {isleId: cfg.id, workId: cfg.id, name: NAME_BY_KIND[lmCfg.kind] || ''};
+  grp.add(lm);
+  allLm.push(lm);
+
+  // 风车叶片单独转
+  if(lmCfg.kind === 'windmill'){
+    var blades = new THREE.Mesh(geoWindmillBlades(), PAINT);
+    blades.position.set(0, 0.088*1.02, 0.040);
+    blades.castShadow = true;
+    lm.add(blades);
+    cfg.blades = blades;
+  }
+  // 石门里透出的青光
+  if(lmCfg.kind === 'gate'){
+    var glowMat = new THREE.MeshBasicMaterial({color:0x62d8e8, transparent:true, opacity:0.82, side:THREE.DoubleSide});
+    var glow = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.074), glowMat);
+    glow.position.set(0, 0.048, 0.001);
+    lm.add(glow);
+    cfg.portalGlow = glowMat;   /* 微动效：石门青光呼吸 */
+  }
+
+  // 布景
+  var sc = scatterIsle(shape, cfg, grp, rnd);
+  cfg.detail = sc.detail;
+  var allShadows = sc.shadows.concat([{x:lx, z:lz, r:0.09*lmCfg.sc, h:0.055*lmCfg.sc}]);
+  buildShadows(allShadows, grp, cfg);
+
+  // 浅滩 + 潮线
+  var shelf = buildShelf(shape);
+  grp.add(shelf);
+  var foamIn  = buildFoam(shape, 0.985, 1.075, 0xffffff, 0.62);
+  var foamOut = buildFoam(shape, 1.085, 1.210, 0xccf6f2, 0.26);
+  grp.add(foamIn); grp.add(foamOut);
+
+  // 可点击的圆环标记
+  var dot = makeDot();
+  dot.position.set(lx, ly + 0.150, lz);
+  grp.add(dot);
+
+  // 岛名标签
+  var lab = document.createElement('div');
+  lab.className = 'lab';
+  lab.innerHTML = '<b>' + (WORKS[cfg.id] ? WORKS[cfg.id].title : cfg.id) + '</b><i>0' + (idx+1) + '</i>';
+  labelsEl.appendChild(lab);
+
+  isles.push({cfg:cfg, shape:shape, grp:grp, x:cfg.x, z:cfg.z, lm:lm, dot:dot, lab:lab,
+              foamIn:foamIn, foamOut:foamOut, lx:lx, lz:lz, ly:ly});
+});
+
+/* ============ 跨岛航线 + 巡游小船 ============
+   动机：好看来自密度和动线，不来自精度。这里只补「动线」，
+   不碰岛形、不碰拾取（pick 只认 allLand/allLm）、不加载任何外部资源。
+   虚线全部合并成一片几何 → 1 个 drawcall；?noroute=1 可整体关掉做对比。
+   流光：每条虚线顶点带 aT（沿线进度），shader 里按 fract(aT*周期 - 时间)
+   出「彗尾」亮斑向进港方向游动 —— 死板的等亮虚线就活了；夜里光斑更亮、
+   底子更暗，读作一串游向码头的浮标灯。hero/snap 下 uTime 锁死，构图可复现。
+   ⚠️ 开关别叫 ?fx= / ?route=：hero 模式已有 fx=(focusX) 机位参数，会撞名。 */
+var ROUTE_ON = !/[?&]noroute=1/.test(location.search);
+var ROUTE_Y = WATER_Y + 0.014;
+var ROUTE_MAT = new THREE.ShaderMaterial({
+  transparent:true, depthWrite:false, side:THREE.DoubleSide,
+  uniforms:{
+    uTime:{value:0}, uOp:{value:0.52}, uNight:{value:0},
+    uColor:{value:new THREE.Color(0xf0ffff)}
+  },
+  vertexShader:
+    'attribute float aT; varying float vT;'+
+    'void main(){ vT=aT; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader:
+    'uniform float uTime; uniform float uOp; uniform float uNight; uniform vec3 uColor;'+
+    'varying float vT;'+
+    'void main(){'+
+    '  float w = fract(vT*18.0 - uTime*0.10);'+
+    '  float comet = smoothstep(0.50, 0.97, w);'+
+    '  vec3 col = uColor + vec3(0.28,0.34,0.36)*comet*(0.50 + 0.50*uNight);'+
+    '  float a = uOp*(0.74 + 0.26*comet - 0.24*uNight);'+
+    '  gl_FragColor = vec4(col, a);'+
+    '}'
+});
+ROUTE_MAT.userData.__tinted = true;   /* 夜色自己管，别被全局 tint 压暗 */
+var routeGroup = new THREE.Group(); scene.add(routeGroup);
+
+/* 主航道锚点全在岛间水域；生成后再逐点推离岛缘做保底 */
+var ROUTE_ANCHORS = [
+  [ 0.00,-2.62],[ 1.30,-2.18],[ 2.32,-0.34],[ 2.04, 1.52],
+  [-0.10, 2.46],[-1.58, 2.18],[-2.32, 0.52],[-2.32,-1.36],[-0.86,-2.54]
+];
+function islandDepth(p, is){
+  var dx=(p.x-is.x)/(is.shape.sx*1.16), dz=(p.z-is.z)/(is.shape.sz*1.16);
+  return Math.sqrt(dx*dx+dz*dz);
+}
+var ROUTE = (function(){
+  var cps=[], i, k, pass;
+  for(i=0;i<ROUTE_ANCHORS.length;i++)
+    cps.push(new THREE.Vector3(ROUTE_ANCHORS[i][0]*0.84, ROUTE_Y, ROUTE_ANCHORS[i][1]*0.84));
+  var p = new THREE.CatmullRomCurve3(cps, true, 'centripetal').getPoints(288);
+  for(pass=0; pass<3; pass++){
+    for(i=0;i<p.length;i++){
+      for(k=0;k<isles.length;k++){
+        var is=isles[k], q=islandDepth(p[i], is);
+        if(q<1.02 && q>1e-5){
+          var s=1.02/q;
+          p[i].x = is.x + (p[i].x-is.x)*s;
+          p[i].z = is.z + (p[i].z-is.z)*s;
+        }
+      }
+    }
+    var sm=[];
+    for(i=0;i<p.length;i++){
+      var a=p[(i-1+p.length)%p.length], b=p[i], c=p[(i+1)%p.length];
+      sm.push(new THREE.Vector3((a.x+2*b.x+c.x)/4, ROUTE_Y, (a.z+2*b.z+c.z)/4));
+    }
+    p = sm;
+  }
+  return p;
+})();
+
+/* 六条进港支线：从主航道最近点弯向各岛，碰到岛缘就停
+   有支线的岛同时登记进 HARBORS —— 后面按它给每岛配码头 */
+var HARBORS = [], SPUR_BY_ID = {};
+var SPURS = (function(){
+  var out=[];
+  for(var k=0;k<isles.length;k++){
+    var is=isles[k];
+    if(is.cfg.id === 'gate') continue;
+    var bi=0, bd=1e9;
+    for(var i=0;i<ROUTE.length;i++){
+      var d=(ROUTE[i].x-is.x)*(ROUTE[i].x-is.x)+(ROUTE[i].z-is.z)*(ROUTE[i].z-is.z);
+      if(d<bd){ bd=d; bi=i; }
+    }
+    var A=ROUTE[bi], dx=is.x-A.x, dz=is.z-A.z, seg=[];
+    var bend=(k%2 ? 1 : -1)*0.12;
+    for(var s=0;s<=30;s++){
+      var u=s/30, w=Math.sin(Math.PI*u)*bend;
+      var p=new THREE.Vector3(A.x+dx*u-dz*w, ROUTE_Y, A.z+dz*u+dx*w);
+      if(islandDepth(p, is) < 1.04) break;
+      var blocked=false;
+      for(var k2=0;k2<isles.length;k2++)
+        if(isles[k2]!==is && islandDepth(p, isles[k2])<1.02){ blocked=true; break; }
+      if(blocked) break;
+      seg.push(p);
+    }
+    if(seg.length>3){
+      out.push(seg);
+      SPUR_BY_ID[is.cfg.id] = seg;
+      var e2=seg[seg.length-1], ex=e2.x-is.x, ez=e2.z-is.z, el=Math.sqrt(ex*ex+ez*ez)||1;
+      HARBORS.push({is:is, ex:ex/el, ez:ez/el, d:el});
+    }
+  }
+  return out;
+})();
+/* 主岛 gate 不在进港支线里，但「每岛有港口」不能漏：
+   用石板路 pathAngle 方向虚拟一个港位，只建码头、不加航线 */
+(function(){
+  var g=isleById('gate'); if(!g) return;
+  var pa=g.cfg.pathAngle||0;
+  HARBORS.push({is:g, ex:Math.cos(pa), ez:Math.sin(pa),
+                d:Math.max(g.shape.sx,g.shape.sz)*1.02});
+})();
+
+/* 虚线：每个小短横 4 顶点 / 2 三角形，全部塞进一个 BufferGeometry
+   aT = 该横沿本条航线的进度（0 航道起点 → 1 码头），供流光 shader 用 */
+function makeDashMesh(paths){
+  var pos=[], att=[], idx=[], n=0, hl=0.027, hw=0.0062;
+  for(var k=0;k<paths.length;k++){
+    var P=paths[k], step=(k===0 ? 3 : 2);   /* 支线短，虚线要密一点才看得出 */
+    for(var i=0;i<P.length-1;i+=step){
+      var a=P[i], b=P[Math.min(i+1,P.length-1)];
+      var dx=b.x-a.x, dz=b.z-a.z, L=Math.sqrt(dx*dx+dz*dz)||1;
+      /* 支线朝码头方向微微变宽（漏斗），进港指向更明确；主航道等宽 */
+      var hw2 = (k===0) ? hw : hw*(0.80 + 1.10*(i/(P.length-1)));
+      var ux=dx/L*hl, uz=dz/L*hl, vx=-dz/L*hw2, vz=dx/L*hw2;
+      pos.push(a.x-ux-vx, ROUTE_Y, a.z-uz-vz,
+               a.x+ux-vx, ROUTE_Y, a.z+uz-vz,
+               a.x+ux+vx, ROUTE_Y, a.z+uz+vz,
+               a.x-ux+vx, ROUTE_Y, a.z-uz+vz);
+      var pr=i/(P.length-1);
+      att.push(pr,pr,pr,pr);
+      idx.push(n,n+1,n+2, n,n+2,n+3); n+=4;
+    }
+  }
+  var g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('aT', new THREE.Float32BufferAttribute(att,1));
+  g.setIndex(idx);
+  var m=new THREE.Mesh(g, ROUTE_MAT);
+  m.renderOrder = 3;
+  return m;
+}
+if(ROUTE_ON){
+  var routeDash = makeDashMesh([ROUTE].concat(SPURS));
+  routeGroup.add(routeDash);
+} else { var routeDash = null; }
+
+/* 一艘慢慢巡航的小木船：船体 + 帆 + 尾迹，3 个 drawcall */
+var boat = null, boatWake = null;
+if(ROUTE_ON){
+  boat = new THREE.Group();
+  var hull = new THREE.Mesh(mergeParts([
+    {g:new THREE.BoxGeometry(0.116,0.020,0.046), m:M(0,0,0), c:'#7d5436'},
+    {g:new THREE.BoxGeometry(0.098,0.012,0.038), m:M(0,0.014,0), c:'#c69a68'},
+    {g:new THREE.ConeGeometry(0.026,0.044,4), m:M(0.070,0,0, 0,0,-Math.PI/2), c:'#8b603c'},
+    {g:new THREE.CylinderGeometry(0.003,0.003,0.126,5), m:M(-0.012,0.070,0), c:'#6f4c30'}
+  ]), PAINT);
+  boat.add(hull);
+  var sailGeo = new THREE.BufferGeometry();
+  sailGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    -0.010,0.022,0,  -0.010,0.130,0,  0.068,0.026,0
+  ],3));
+  sailGeo.computeVertexNormals();
+  boat.add(new THREE.Mesh(sailGeo, new THREE.MeshBasicMaterial({
+    color:0xfff4dc, side:THREE.DoubleSide, transparent:true, opacity:0.96})));
+  boatWake = new THREE.Mesh(new THREE.PlaneGeometry(0.11,0.030).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.26, depthWrite:false}));
+  boatWake.position.set(-0.075,-0.012,0);
+  boat.add(boatWake);
+  boat.scale.setScalar(1.75);
+  routeGroup.add(boat);
+}
+function routeAt(u){
+  var f=(((u%1)+1)%1)*(ROUTE.length-1), i=Math.floor(f), w=f-i;
+  var a=ROUTE[i], b=ROUTE[Math.min(i+1,ROUTE.length-1)];
+  return {x:a.x+(b.x-a.x)*w, z:a.z+(b.z-a.z)*w, dx:b.x-a.x, dz:b.z-a.z};
+}
+
+/* ============ 每岛一个专属微动效 ============
+   总览时只求「细看有活气」，进岛后各自明显；相位错开，避免齐步走。
+   全部挂在独立 fxGroup（世界坐标）—— 不能挂进 isles[i].grp，
+   否则会被 shelfMats 当成浅滩材质、夜里被 setNight 覆写 opacity。
+   ?nofx=1 可整体关掉做对比（别用 ?fx=，会撞 focusX 机位参数）。 */
+var FX_ON = !/[?&]nofx=1/.test(location.search);
+var fxGroup = new THREE.Group(); scene.add(fxGroup);
+var fxMats = [], isleFx = [];
+var SOFT_DOT = (function(){
+  var cv=document.createElement('canvas'); cv.width=cv.height=32;
+  var g=cv.getContext('2d'), gr=g.createRadialGradient(16,16,0,16,16,16);
+  gr.addColorStop(0,'rgba(255,255,255,1)');
+  gr.addColorStop(0.45,'rgba(255,255,255,0.62)');
+  gr.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle=gr; g.fillRect(0,0,32,32);
+  return new THREE.CanvasTexture(cv);
+})();
+function fxMat(color, day, night, isPoints, size){
+  var m = isPoints
+    ? new THREE.PointsMaterial({color:color, size:size||0.05, map:SOFT_DOT,
+        transparent:true, opacity:day, depthWrite:false, sizeAttenuation:true})
+    : new THREE.MeshBasicMaterial({color:color, transparent:true, opacity:day,
+        depthWrite:false, side:THREE.DoubleSide});
+  m.userData.__tinted = true;      /* 夜色自己管，不进全局 tint */
+  m.userData.dayOp=day; m.userData.nightOp=night; m.userData.base=day; m.userData.shown=day;
+  fxMats.push(m);
+  return m;
+}
+function isleById(id){
+  for(var i=0;i<isles.length;i++) if(isles[i].cfg.id===id) return isles[i];
+  return null;
+}
+function addFx(F){ isleFx.push(F); if(F.o) fxGroup.add(F.o); return F; }
+
+/* ============ 每岛港口 ===========
+   有进港支线的岛配一座小木码头：甲板 + 系船柱 + 挂灯，船正好停在支线尽头。
+   码头是「岛的建筑」不是航线 —— 单岛模式也要看得见，所以独立 pierGroup
+   按岛控可见性（不挂进 routeGroup）；材质走 PAINT 随全局夜色变暗；
+   不进 allLand/allLm，不碰拾取。挂灯白天灭、夜里亮成一点暖光，和航线流灯呼应。 */
+var pierGroup = new THREE.Group(); scene.add(pierGroup);
+if(ROUTE_ON){
+  /* 尺度对齐小船（船长 ≈0.20 世界单位）：码头全长 ≈0.23，甲板抬到沫线之上，
+     根部稍微探进沙滩沿里，视觉上「从岛上长出来」 */
+  var PIER_PARTS = [
+    {g:new THREE.BoxGeometry(0.225,0.007,0.078),          m:M(0.115,0.040,0),            c:'#bb8d5e'},
+    {g:new THREE.BoxGeometry(0.225,0.005,0.009),          m:M(0.115,0.046, 0.035),       c:'#96683f'},
+    {g:new THREE.BoxGeometry(0.225,0.005,0.009),          m:M(0.115,0.046,-0.035),       c:'#96683f'},
+    {g:new THREE.CylinderGeometry(0.0045,0.0045,0.20,5), m:M(0.035,-0.075, 0.030),  c:'#6f4c30'},
+    {g:new THREE.CylinderGeometry(0.0045,0.0045,0.20,5), m:M(0.035,-0.075,-0.030),  c:'#6f4c30'},
+    {g:new THREE.CylinderGeometry(0.0045,0.0045,0.20,5), m:M(0.115,-0.075, 0.030),  c:'#6f4c30'},
+    {g:new THREE.CylinderGeometry(0.0045,0.0045,0.20,5), m:M(0.115,-0.075,-0.030),  c:'#6f4c30'},
+    {g:new THREE.CylinderGeometry(0.0045,0.0045,0.20,5), m:M(0.195,-0.075, 0.030),  c:'#6f4c30'},
+    {g:new THREE.CylinderGeometry(0.0045,0.0045,0.20,5), m:M(0.195,-0.075,-0.030),  c:'#6f4c30'},
+    {g:new THREE.CylinderGeometry(0.007,0.008,0.022,6),   m:M(0.205,0.056,0),            c:'#5c3f2a'},
+    {g:new THREE.CylinderGeometry(0.003,0.003,0.060,5),   m:M(0.140,0.072,0.026),        c:'#54483c'},
+    {g:new THREE.BoxGeometry(0.016,0.017,0.016),          m:M(0.140,0.106,0.026),        c:'#e8b96f'}
+  ];
+  for(var hi=0; hi<HARBORS.length; hi++){
+    var hb=HARBORS[hi];
+    var pier=new THREE.Mesh(mergeParts(PIER_PARTS), PAINT);
+    pier.position.set(hb.is.x + hb.ex*(hb.d-0.045), WATER_Y+0.140, hb.is.z + hb.ez*(hb.d-0.045));
+    pier.rotation.y = Math.atan2(-hb.ez, hb.ex);   /* 局部 +X 指向海面（进港方向） */
+    pier.scale.setScalar(1.3);
+    pier.userData.isle = hb.is.cfg.id;
+    pierGroup.add(pier);
+    if(FX_ON){
+      /* 挂灯夜光晕（世界坐标，挂 fxGroup）：白天 0，夜里一点暖光 */
+      var angL=Math.atan2(-hb.ez, hb.ex);
+      var lx2=0.140*Math.cos(angL)+0.022*Math.sin(angL);
+      var lz2=-0.140*Math.sin(angL)+0.022*Math.cos(angL);
+      var gGeo=new THREE.BufferGeometry();
+      gGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+        pier.position.x+lx2, WATER_Y+0.280, pier.position.z+lz2],3));
+      var gPts=new THREE.Points(gGeo, fxMat(0xffd9a0, 0.0, 0.85, true, 0.055));
+      addFx({k:'lantern', is:hb.is, mat:gPts.material, o:gPts, ph:hi*0.9});
+    }
+  }
+}
+
+/* ============ 轨道式上岸（漫游第 ① 步） ===========
+   点岛 → 镜头从等距俯视降到近海面 → 沿码头方向轨道推近 → 抬回单岛视角；
+   小人从停泊的小船边下船，沿码头→石板路走到地标旁，之后常驻岛上。
+   没有自由控制，本质就是「一条固定镜轨 + 一条固定步行轨」。
+   ?land=<岛名> 自动播放；?lt=<秒> 定格任意帧（出图/验收用）；
+   ?nland=1 关掉，回到原来的 900ms 快速推近。
+   HERO/SNAP 不带 land 时一律不触发，既有海报构图完全不受影响。 */
+var LAND_DUR  = 5.6;                                  // 秒
+var LAND_OFF  = /[?&]nland=1/.test(location.search);
+var LAND_HOLD = (function(){
+  var m = location.search.match(/[?&]lt=([0-9.]+)/);
+  return m ? Math.max(0, Math.min(LAND_DUR, parseFloat(m[1]))) : null;
+})();
+var landSeq = null, landHarbor = null;
+var walker = null, legL = null, legR = null;
+
+/* 低模小人：大衣/围巾/双臂/头/发/背包合成 1 个 mesh，两条腿单独挂 pivot 做摆动。
+   用 PAINT（共享材质）→ 夜色自动跟随；不进 allLand/allLm，不参与拾取。
+   尺度基准：1.0 时身高约 0.09 世界单位，仅到低矮树丛的高度 —— 别放大成巨人。 */
+(function buildWalker(){
+  walker = new THREE.Group();
+  var body = new THREE.Mesh(mergeParts([
+    {g:new THREE.CylinderGeometry(0.0095,0.0130,0.036,7),  m:M(0,0.050,0),        c:'#37628a'},   /* 大衣躯干 */
+    {g:new THREE.CylinderGeometry(0.0130,0.0142,0.008,7),  m:M(0,0.0315,0),       c:'#2c5174'},   /* 大衣下摆 */
+    {g:new THREE.CylinderGeometry(0.0102,0.0102,0.006,7),  m:M(0,0.0685,0),       c:'#c8703c'},   /* 围巾 */
+    {g:new THREE.CylinderGeometry(0.0034,0.0030,0.019,5),  m:M(-0.0128,0.048,0, 0,0,0.14), c:'#37628a'}, /* 左臂 */
+    {g:new THREE.CylinderGeometry(0.0034,0.0030,0.019,5),  m:M( 0.0128,0.048,0, 0,0,-0.14), c:'#37628a'}, /* 右臂 */
+    {g:new THREE.SphereGeometry(0.0105,8,6),               m:M(0,0.0815,0),       c:'#f2cfa8'},   /* 头 */
+    {g:new THREE.SphereGeometry(0.0108,8,5,0,Math.PI*2,0,Math.PI*0.52),
+                                                           m:M(0,0.0840,0),       c:'#3b3129'},   /* 头发 */
+    {g:new THREE.BoxGeometry(0.0105,0.0135,0.0058),        m:M(0,0.051,-0.0122),  c:'#b06538'},   /* 背包 */
+    {g:new THREE.BoxGeometry(0.0035,0.020,0.0022),         m:M(0,0.052,0.0100, 0,0,-0.42), c:'#54483c'}  /* 斜挎带 */
+  ]), PAINT);
+  walker.add(body);
+  /* 腿：裤子+鞋头分色，pivot 挪到髋部 */
+  var legGeo = mergeParts([
+    {g:new THREE.BoxGeometry(0.0058,0.0195,0.0072), m:M(0,-0.0098,0),        c:'#2e3a48'},
+    {g:new THREE.BoxGeometry(0.0062,0.0058,0.0086), m:M(0,-0.0222,0.0009),   c:'#3b3129'}
+  ]);
+  legL = new THREE.Mesh(legGeo, PAINT);
+  legR = new THREE.Mesh(legGeo.clone(), PAINT);
+  legL.position.set(0,0.0298, 0.0062);
+  legR.position.set(0,0.0298,-0.0062);
+  walker.add(legL, legR);
+  walker.visible = false;
+  scene.add(walker);
+})();
+
+/* 地面高度：topY 在 rf>0.9 会返回 null（沙滩区），这里去掉限制，
+   并把 rf 夹在 0.999 内 —— 海面段自然落到 PROF 末端（海边高度）。 */
+function groundYAt(is, wx, wz){
+  var x=wx-is.x, z=wz-is.z;
+  var u=x/is.shape.sx, v=z/is.shape.sz;
+  var rf=Math.min(0.999, Math.sqrt(u*u+v*v)/Rat(is.shape, Math.atan2(v,u)));
+  return profTopY(rf) + hillAt(rf, is.cfg) + 0.010;
+}
+/* 步行轨：码头外端（船边）→ 甲板 → 沙滩 → 岛内 → 地标前。
+   有支线的岛用码头方向；主岛 gate 没有码头，用石板路 pathAngle 顶上。 */
+function landingPath(is){
+  var hb=null;
+  for(var i=0;i<HARBORS.length;i++) if(HARBORS[i].is===is) hb=HARBORS[i];
+  var ex,ez,d;
+  if(hb){ ex=hb.ex; ez=hb.ez; d=hb.d; }
+  else { var pa=is.cfg.pathAngle||0; ex=Math.cos(pa); ez=Math.sin(pa);
+         d=Math.max(is.shape.sx,is.shape.sz)*1.02; }
+  var px=-ez, pz=ex;
+  function P(r,side,y){ return new THREE.Vector3(is.x+ex*r+px*side, y, is.z+ez*r+pz*side); }
+  var p0=P(d+0.30, 0,    WATER_Y+0.070);   /* 船边 */
+  var p1=P(d+0.05, 0.02, WATER_Y+0.190);   /* 踏上甲板 */
+  var p2=P(d-0.22, 0.06, 0);
+  var p3=P(d*0.52, 0.10, 0);
+  var p4=new THREE.Vector3(is.x+is.lx-ex*0.18, 0, is.z+is.lz-ez*0.18);
+  p2.y=groundYAt(is,p2.x,p2.z); p3.y=groundYAt(is,p3.x,p3.z);
+  p4.y=groundYAt(is,p4.x,p4.z);
+  var curve=new THREE.CatmullRomCurve3([p0,p1,p2,p3,p4], false, 'centripetal');
+  return {curve:curve, ex:ex, ez:ez, d:d, dock:p0};
+}
+function lmix(a,b,k){ return a+(b-a)*k; }
+function lsmooth(a,b,p){ var k=Math.max(0,Math.min(1,(p-a)/(b-a))); return k*k*(3-2*k); }
+
+/* 三段镜轨端点：A 近海面 / B 轨道推近 / C 标准单岛机位。
+   全部用相对 isleZoom 的倍数，横竖屏自适应，不写死相机距离。 */
+function landCam(p,S){
+  /* 竖屏下 B/A 段的「比单岛远一点」会把岛压得太小，收 20% */
+  var zI=S.zI*(camera.aspect<0.9 ? 0.80 : 1), thT=S.th0+S.dth, is=S.is, pa=S.path;
+  /* theta 始终侧偏 ~0.5rad：正对码头会把它压成一根棍，斜看才认得出是栈桥。
+     A 段焦点只往码头方向偏 0.3d，zoom 也只比单岛远 1.55 倍 —— 岛始终是画面主体 */
+  var A={th:thT+0.62, ph:0.98,     z:zI*1.45,
+         fx:is.x, fz:is.z, ly:-0.06};
+  var B={th:thT+0.52, ph:0.86,     z:zI*1.12, fx:is.x, fz:is.z, ly:0.01};
+  var C={th:thT+0.46, ph:PHI_ISLE, z:zI,      fx:is.x, fz:is.z, ly:-0.02};
+  var P,Q,k;
+  if(p<0.38)      { P=S.s; Q=A; k=lsmooth(0,0.38,p); }
+  else if(p<0.78) { P=A;   Q=B; k=lsmooth(0.38,0.78,p); }
+  else            { P=B;   Q=C; k=lsmooth(0.78,1,p); }
+  theta  = lmix(P.th,Q.th,k); phi   = lmix(P.ph,Q.ph,k);
+  zoom   = lmix(P.z, Q.z, k);
+  /* 焦点从总览原点快速归到岛心（约 1 秒完成）—— 若按整段插值，
+     前半程镜头还对着海，岛会被甩到画面边上 */
+  var kf = lsmooth(0,0.18,p);
+  focusX = lmix(S.s.fx, is.x, kf);
+  focusZ = lmix(S.s.fz, is.z, kf);
+  lookY  = lmix(P.ly,Q.ly,k);
+}
+function landWalk(p,S){
+  var k=Math.max(0,Math.min(1,(p-0.10)/0.76)), u=lsmooth(0,1,k);
+  var pt=S.path.curve.getPoint(u), nx=S.path.curve.getPoint(Math.min(1,u+0.01));
+  walker.position.copy(pt);
+  var dx=nx.x-pt.x, dz=nx.z-pt.z;
+  var yaw = Math.atan2(dx,dz);   /* 正面=本地+z：Y=atan2(dx,dz) */
+  /* 走到地标前慢慢回身面对镜头，别留一个后脑勺给镜头 */
+  walker.rotation.y = yaw + lsmooth(0.86,1,p)*Math.PI*1.15;
+  var moving=(k>0 && k<1), sw=Math.sin(u*46);
+  legL.rotation.x = moving ? sw*0.42 : 0;
+  legR.rotation.x = moving ? -sw*0.42 : 0;
+  if(moving) walker.position.y += Math.abs(sw)*0.0022;
+  walker.scale.setScalar(1.2*Math.max(0, Math.min(1,(p-0.06)/0.08)));
+}
+function startLanding(is, fromURL){
+  if(!is) return;
+  if(LAND_OFF && !fromURL){ enterIsle(is.cfg.id); return; }
+  if((SNAP || HERO) && !fromURL){ enterIsle(is.cfg.id, true); return; }
+  var path=landingPath(is);
+  var s={th:theta, ph:phi, z:zoom, fx:focusX, fz:focusZ,
+         ly:(lookY===null?defaultLookY():lookY)};
+  var thT=Math.atan2(path.ex, path.ez);
+  var dth=((thT - s.th + Math.PI*3) % (Math.PI*2)) - Math.PI;   // 走最短角差
+  landSeq={is:is, path:path, zI:isleZoom(is.cfg,is.shape), s:s,
+           th0:s.th, dth:dth, t0:performance.now(), dur:LAND_DUR*1000};
+  landHarbor=path;
+  camTween=null;
+  MODE='isle'; curIsle=is;
+  closeWork(true);
+  showOnly(is);            /* 全程孤岛：低机位不穿帮，海面构图更干净 */
+  setDetail(true);
+  backBtn.hidden=false;
+  bK.textContent='ISLE · 0'+(isles.indexOf(is)+1)+' / 07';
+  bH.textContent=WORKS[is.cfg.id] ? WORKS[is.cfg.id].title : is.cfg.id;
+  dropHint();
+  walker.visible=true;
+}
+function stepLanding(){
+  if(!landSeq) return;
+  var S=landSeq;
+  var p=(LAND_HOLD!==null) ? LAND_HOLD/LAND_DUR
+                           : Math.min(1,(performance.now()-S.t0)/S.dur);
+  landCam(p,S); landWalk(p,S);
+  if(p>=1 && LAND_HOLD===null){
+    landSeq=null;
+    if(walkReady(S.is)) enterWalk(S.is);   /* 落定即自由走 */
+  }
+}
+function finishLanding(){        /* 过场中任意点击 = 跳过，立刻落终态 */
+  if(!landSeq) return;
+  var S=landSeq;
+  landCam(1,S); landWalk(1,S);
+  landSeq=null;
+  updateCamera();
+  if(walkReady(S.is)) enterWalk(S.is);
+}
+
+/* ============ 自由走（第②步 · 已开放全部 7 岛）============
+   上岸落定后小人留在岛上：手机摇杆 / 电脑 WASD / 点地面自由走动，
+   相机不重建 —— 球坐标焦点平滑跟随小人，拖拽=环绕、双指=远近，
+   现有 orbit 手感自动变成第三人称镜头。
+   边界：岛缘 rf≤0.84（草地面内，不下海不站崖）；地标亭一圈避让。
+   内容触发：走近地标自动弹该岛作品卡，走远收起。
+   ?nwalk=1 退回纯展示；SNAP/HERO 海报模式与总览不经过这里。 */
+var WALK_OFF = /[?&]nwalk=1/.test(location.search);
+var HAS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints||0) > 0
+  || location.search.indexOf('touch=1') >= 0;   /* ?touch=1 调试：模拟手机输入 */
+var walkIsle=null, walkOn=false, walkSpd=0.13;
+var walkTarget=null;                       /* 点地面行走的目标点（世界坐标） */
+var dpadEl=null;
+var wPhiT=1.0, wZoomT=0, wZoom=0;          /* 跟随镜头的目标仰角 / 目标半径 */
+var wKF={x:0, z:0, y:0};                   /* 平滑焦点（指数收敛） */
+var walkPhase=0, lastT=null;
+var joyEl=null, joyKnob=null;
+var joy={x:0, y:0, on:false, id:null};
+var keysDown={};
+function walkReady(is){ return !WALK_OFF && !SNAP && !HERO && !!is; }
+function enterWalk(is){
+  walkIsle=is; walkOn=true; autoSpin=false;
+  document.getElementById('spin').classList.remove('on');
+  var zI=isleZoom(is.cfg,is.shape), portrait=camera.aspect<0.9;
+  wZoom=zI; wZoomT=zI*(portrait?0.26:0.30);
+  wPhiT=portrait?1.02:0.96;
+  wKF.x=walker.position.x; wKF.z=walker.position.z; wKF.y=walker.position.y;
+  focusX=wKF.x; focusZ=wKF.z; lookY=wKF.y+0.02;
+  walkPhase=0;
+  /* 出图调试：?wtp=<角度> 把小人直接摆到距地标 0.13 的圆周上，验证跟随镜头与自动弹卡。
+     无头环境 rAF 几乎不渲染（虚拟时间都给了定时器），缓动跑不起来 —— 所以连同镜头一起落终态 */
+  var wm=location.search.match(/[?&]wtp=([0-9.]+)/);
+  if(wm){
+    var wa=parseFloat(wm[1]);
+    walker.position.set(is.x+is.lx+Math.cos(wa)*0.13, 0, is.z+is.lz+Math.sin(wa)*0.13);
+    walker.position.y=groundYAt(is,walker.position.x,walker.position.z);
+    walker.rotation.y=Math.atan2(is.x+is.lx-walker.position.x, is.z+is.lz-walker.position.z);
+    wZoom=wZoomT; phi=wPhiT;
+    wKF.x=walker.position.x; wKF.z=walker.position.z; wKF.y=walker.position.y;
+    focusX=wKF.x; focusZ=wKF.z; lookY=wKF.y+0.015;
+  }
+  /* 出图调试：?wbd=<0-1> 把小人摆到上岸曲线的指定进度处（验证登船区/跟随镜头） */
+  var bm=location.search.match(/[?&]wbd=([0-9.]+)?/);
+  if(bm){
+    var lp2=landingPath(is);
+    var px2=parseFloat(bm[1]||'0.62');
+    var sel=lp2.curve.getPoint(px2);
+    walker.position.set(sel.x, 0, sel.z);
+    walker.position.y=groundYAt(is,sel.x,sel.z);
+    var uu=(sel.x-is.x)/is.shape.sx, vv=(sel.z-is.z)/is.shape.sz;
+    var rfv=Math.hypot(uu,vv)/Rat(is.shape, Math.atan2(vv,uu));
+    wZoom=wZoomT; phi=wPhiT;
+    wKF.x=walker.position.x; wKF.z=walker.position.z; wKF.y=walker.position.y;
+    focusX=wKF.x; focusZ=wKF.z; lookY=wKF.y+0.015;
+    document.title='BD u'+px2+' rf'+rfv.toFixed(3)+' p'+sel.x.toFixed(2)+','+sel.z.toFixed(2)
+      +' VOY:'+(voyIsle===is?'on':'off');
+  }
+  if(!joyEl){ joyEl=document.getElementById('joy'); joyKnob=document.getElementById('joyKnob'); }
+  if(!dpadEl) dpadEl=document.getElementById('dpad');
+  if(dpadEl) dpadEl.classList.toggle('on', !HAS_TOUCH);
+  walkTarget=null;
+  /* 手机：提示条会压住摇杆，直接收起；桌面端抬到方向键之上再淡出 */
+  hintEl.style.bottom='calc(126px + env(safe-area-inset-bottom))';
+  if(HAS_TOUCH){ joyEl.classList.add('on'); hintEl.style.display='none'; }
+  else {
+    hintEl.textContent='WASD / 方向键 移动 · 或点地面走过去 · 拖动转视角';
+    hintEl.style.opacity='1';
+    setTimeout(function(){ hintEl.style.opacity='0'; }, 4200);
+  }
+}
+function exitWalk(){
+  walkOn=false; walkIsle=null; walker.visible=false;
+  walkTarget=null;
+  hintEl.style.bottom='';
+  if(hintEl.style.display==='none') hintEl.style.display='';
+  if(joyEl) joyEl.classList.remove('on');
+  if(dpadEl) dpadEl.classList.remove('on');
+  resetJoy(); keysDown={};
+}
+function resetJoy(){
+  joy.x=0; joy.y=0; joy.on=false; joy.id=null;
+  if(joyKnob) joyKnob.style.transform='translate(-50%,-50%)';
+}
+/* 点地面行走：目标点先夹进可走范围（岛缘内 + 避开地标亭），
+   实际行进中每步还有同样的边界推回，两道保险 */
+function setWalkTarget(wx, wz){
+  if(!walkIsle || !walker) return;
+  var is=walkIsle;
+  var u=(wx-is.x)/is.shape.sx, v=(wz-is.z)/is.shape.sz;
+  var rf=Math.hypot(u,v)/Rat(is.shape, Math.atan2(v,u));
+  if(rf>0.84){
+    var kb=0.84/rf;
+    wx=is.x+(wx-is.x)*kb; wz=is.z+(wz-is.z)*kb;
+  }
+  var lxw=is.x+is.lx, lzw=is.z+is.lz;
+  var ddx=wx-lxw, ddz=wz-lzw, dl=Math.hypot(ddx,ddz);
+  if(dl<0.155){
+    if(dl<1e-5){ ddx=1; ddz=0; dl=1; }
+    wx=lxw+ddx/dl*0.155; wz=lzw+ddz/dl*0.155;
+  }
+  walkTarget = Math.hypot(wx-walker.position.x, wz-walker.position.z)>0.03
+    ? {x:wx, z:wz} : null;
+}
+/* 输入聚合：键盘 + 摇杆 → (前进, 右移)，模长夹 1 */
+function walkInput(){
+  var f=0, r=0;
+  if(keysDown['w']||keysDown['arrowup'])    f+=1;
+  if(keysDown['s']||keysDown['arrowdown'])  f-=1;
+  if(keysDown['a']||keysDown['arrowleft'])  r-=1;
+  if(keysDown['d']||keysDown['arrowright']) r+=1;
+  if(joy.on){ f+=-joy.y; r+=joy.x; }
+  var m=Math.hypot(f,r);
+  if(m>1){ f/=m; r/=m; }
+  return {f:f, r:r, m:Math.min(1,m)};
+}
+function stepWalk(dt){
+  if(!walkOn || !walkIsle) return;
+  var is=walkIsle, inp=walkInput(), dx=0, dz=0;
+  if(inp.m>0.02){                       /* 手动输入优先：一动手就取消点地目标 */
+    walkTarget=null;
+    /* 相机相对：forward=镜头朝向 XZ 投影，right=垂直分量 */
+    var fx=-Math.sin(theta), fz=-Math.cos(theta);
+    var rx= Math.cos(theta), rz=-Math.sin(theta);
+    dx=(fx*inp.f+rx*inp.r)*walkSpd*dt;
+    dz=(fz*inp.f+rz*inp.r)*walkSpd*dt;
+  } else if(walkTarget){                /* 点地面行走：朝目标点走，近了减速停步 */
+    var tdx=walkTarget.x-walker.position.x, tdz=walkTarget.z-walker.position.z;
+    var td=Math.hypot(tdx,tdz);
+    if(td<0.03){ walkTarget=null; }
+    else{
+      var st=Math.min(td, walkSpd*dt*Math.max(0.35, Math.min(1, td/0.16)));
+      dx=tdx/td*st; dz=tdz/td*st;
+    }
+  }
+  var moving=(dx!==0 || dz!==0);
+  if(moving){
+    var nx=walker.position.x+dx, nz=walker.position.z+dz;
+    /* 边界：岛缘 rf≤0.84 */
+    var u=(nx-is.x)/is.shape.sx, v=(nz-is.z)/is.shape.sz;
+    var rf=Math.hypot(u,v)/Rat(is.shape, Math.atan2(v,u));
+    if(rf>0.84){
+      var kb=0.84/rf;
+      nx=is.x+(nx-is.x)*kb; nz=is.z+(nz-is.z)*kb;
+    }
+    /* 避让：地标亭一圈（走了进就推出去） */
+    var lxw=is.x+is.lx, lzw=is.z+is.lz;
+    var ddx=nx-lxw, ddz=nz-lzw, dl=Math.hypot(ddx,ddz);
+    if(dl<0.155){
+      if(dl<1e-5){ ddx=1; ddz=0; dl=1; }
+      nx=lxw+ddx/dl*0.155; nz=lzw+ddz/dl*0.155;
+    }
+    /* 面朝移动方向：模型正面是本地 +z，正面=(sinY,cosY) → Y=atan2(dx,dz) */
+    walker.rotation.y=Math.atan2(dx,dz);
+    walker.position.x=nx; walker.position.z=nz;
+    walkPhase+=dt*8.2*Math.max(0.45,inp.m);
+  } else {
+    walkPhase*=Math.max(0,1-dt*6);          /* 收步：腿摆平滑归零 */
+  }
+  walker.position.y=groundYAt(is,walker.position.x,walker.position.z)
+    +(moving?Math.abs(Math.sin(walkPhase))*0.0022:0);
+  var sw=Math.sin(walkPhase)*0.42;
+  legL.rotation.x=sw; legR.rotation.x=-sw;
+  /* 跟随镜头：焦点指数平滑；phi/zoom 向目标收拢；theta 完全交给用户 */
+  var kzc=Math.min(1,dt*2.2), kfc=Math.min(1,dt*4.2);
+  wZoom+=(wZoomT-wZoom)*kzc;
+  phi+=(wPhiT-phi)*Math.min(1,dt*2.6);
+  zoom=wZoom;
+  wKF.x+=(walker.position.x-wKF.x)*kfc;
+  wKF.z+=(walker.position.z-wKF.z)*kfc;
+  wKF.y+=(walker.position.y-wKF.y)*kfc;
+  focusX=wKF.x; focusZ=wKF.z;
+  lookY=wKF.y+0.015;
+  /* 内容触发：走近弹卡、走远收起 */
+  var dlw=Math.hypot(walker.position.x-(is.x+is.lx), walker.position.z-(is.z+is.lz));
+  var wid=is.cfg.id;
+  if(dlw<0.165 && curWork!==wid) openWork(wid);
+  else if(dlw>0.26 && curWork===wid) closeWork(true);
+  /* 登船区：走到码头根部（gate 是石板路口）弹出乘船条。
+     登船点不能取上岸曲线的固定 u —— 码头在岛缘之外（rf≈0.9~1.5），
+     小人被 0.84 边界挡住永远够不到。改为从岛内端(u=1)往码头方向扫，
+     取最后一个 rf≤0.78 的点 = 「可走范围内的码头根部」。 */
+  if(!voyage){
+    var bp=is._boardPt;
+    if(!bp){
+      bp={x:is.x+is.lx, z:is.z+is.lz};
+      var cv=landingPath(is).curve, q=cv.getPoint(1);
+      for(var ub=1; ub>=0.30; ub-=0.02){
+        q=cv.getPoint(ub);
+        var ub2=(q.x-is.x)/is.shape.sx, vb2=(q.z-is.z)/is.shape.sz;
+        var rfb=Math.hypot(ub2,vb2)/Rat(is.shape, Math.atan2(vb2,ub2));
+        if(rfb>0.78) break;
+        bp={x:q.x, z:q.z};
+      }
+      is._boardPt=bp;
+    }
+    var bd=Math.hypot(walker.position.x-bp.x, walker.position.z-bp.z);
+    setVoy(bd<0.20, is);
+    if(location.search.indexOf('vdbg=1')>=0) document.title='WALK '+(voyIsle===is?'VOY':'-')
+      +' d'+bd.toFixed(3)+' bp'+bp.x.toFixed(2)+','+bp.z.toFixed(2)
+      +' w'+walker.position.x.toFixed(2)+','+walker.position.z.toFixed(2);
+  }
+}
+/* 摇杆：独立 DOM，不与画布的拖拽/拾取冲突 */
+(function(){
+  function jstart(e){
+    if(!walkOn) return;
+    e.preventDefault(); e.stopPropagation();
+    joy.on=true; joy.id=e.pointerId;
+    if(joyEl.setPointerCapture) try{ joyEl.setPointerCapture(e.pointerId); }catch(_e){}
+    joyEl.classList.add('active');
+    jmove(e);
+  }
+  function jmove(e){
+    if(!joy.on || e.pointerId!==joy.id) return;
+    var rc=joyEl.getBoundingClientRect();
+    var dx=(e.clientX-(rc.left+rc.width/2))/(rc.width/2);
+    var dy=(e.clientY-(rc.top+rc.height/2))/(rc.height/2);
+    var m=Math.hypot(dx,dy);
+    if(m>1){ dx/=m; dy/=m; }
+    joy.x=dx; joy.y=dy;
+    joyKnob.style.transform='translate(calc(-50% + '+(dx*28).toFixed(1)+'px), calc(-50% + '+(dy*28).toFixed(1)+'px))';
+  }
+  function jend(e){
+    if(e.pointerId===joy.id){ resetJoy(); joyEl.classList.remove('active'); }
+  }
+  joyEl=document.getElementById('joy'); joyKnob=document.getElementById('joyKnob');
+  joyEl.addEventListener('pointerdown', jstart);
+  joyEl.addEventListener('pointermove', jmove);
+  joyEl.addEventListener('pointerup', jend);
+  joyEl.addEventListener('pointercancel', jend);
+})();
+/* 屏幕方向键：按住 = 移动。不依赖键盘焦点（预览面板/iframe 里键盘常拿不到） */
+(function(){
+  dpadEl=document.getElementById('dpad');
+  if(!dpadEl) return;
+  var btns=dpadEl.querySelectorAll('button');
+  btns.forEach ? btns.forEach(bind) : Array.prototype.forEach.call(btns, bind);
+  function bind(b){
+    b.addEventListener('pointerdown', function(e){
+      e.preventDefault(); e.stopPropagation();
+      if(!walkOn) return;
+      try{ dpadEl.setPointerCapture(e.pointerId); }catch(_e){}
+      keysDown[b.dataset.k]=true; walkTarget=null;
+      b.classList.add('on');
+    });
+    function off(){
+      keysDown[b.dataset.k]=false;
+      b.classList.remove('on');
+    }
+    b.addEventListener('pointerup', off);
+    b.addEventListener('pointercancel', off);
+    b.addEventListener('lostpointercapture', off);
+  }
+})();
+/* 漫游外的移动键 = 想走但还没进漫游 → 给一句指路提示 */
+var tipTimer=null;
+function tip(msg){
+  hintEl.textContent=msg; hintEl.style.opacity='1';
+  if(tipTimer) clearTimeout(tipTimer);
+  tipTimer=setTimeout(function(){ hintEl.style.opacity='0'; }, 3400);
+}
+window.addEventListener('keydown', function(e){
+  var k=e.key.toLowerCase();
+  var isMoveKey=['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].indexOf(k)>=0;
+  if(isMoveKey && walkOn){
+    e.preventDefault(); keysDown[k]=true; walkTarget=null;
+  } else if(isMoveKey && !landSeq){
+    if(MODE==='arch') tip('点岛上岸后可自由走动 · 7 座岛都已开放');
+    else tip('点岛上岸即可自由走动');
+  }
+});
+window.addEventListener('keyup', function(e){ keysDown[e.key.toLowerCase()]=false; });
+
+/* ============ 漫游第③步：跨岛乘船 ============
+   走到码头根部（gate 是石板路口）→ 弹「乘船去」岛名条 → 选岛后：
+   登船（小人走上码头，小船就停在泊位）→ 起航（船沿「支线→主航道→支线」
+   真实航线开往目标岛，镜头拉远跟随，半程目标岛渐显）→ 到港（船落泊位，
+   交接给第①步上岸镜轨，落定即目标岛漫游）。航程中点一下 = 跳过。
+   gate 无进港支线：主航道最近点 → 港位 直线替代。 */
+var ISLE_SHORT = {gate:'石门', houseBlue:'蓝顶小屋', houseWood:'木屋',
+                  pavilion:'OASIS', windmill:'风车', lookout:'瞭望塔', torii:'鸟居'};
+var voyEl=null, voyIsle=null, voyage=null;
+
+function buildVoy(fromIs){
+  var html='';
+  for(var i=0;i<isles.length;i++){
+    var is2=isles[i];
+    if(is2===fromIs) continue;
+    html+='<button type="button" data-id="'+is2.cfg.id+'">0'+(i+1)+' '+
+          (ISLE_SHORT[is2.cfg.id]||is2.cfg.id)+'</button>';
+  }
+  var box=document.getElementById('voyChips');
+  box.innerHTML=html;
+  var btns=box.querySelectorAll('button');
+  Array.prototype.forEach.call(btns, function(b){
+    b.addEventListener('click', function(){ startVoyage(isleById(b.dataset.id)); });
+  });
+}
+function setVoy(on, isle){
+  if(!voyEl) voyEl=document.getElementById('voy');
+  if(on){
+    if(voyIsle!==isle) buildVoy(isle);
+    voyIsle=isle;
+    voyEl.classList.add('on');
+    if(hintEl && hintEl.style.opacity!=='0') hintEl.style.opacity='0';  /* 别和乘船条叠字 */
+  } else {
+    voyEl.classList.remove('on');
+    voyIsle=null;
+  }
+}
+function hideVoy(){ setVoy(false, null); }
+
+function harborOf(is){
+  for(var i=0;i<HARBORS.length;i++) if(HARBORS[i].is===is) return HARBORS[i];
+  return null;
+}
+function routeIndexOf(pt){
+  var bi=0, bd=1e9;
+  for(var i=0;i<ROUTE.length;i++){
+    var d=(ROUTE[i].x-pt.x)*(ROUTE[i].x-pt.x)+(ROUTE[i].z-pt.z)*(ROUTE[i].z-pt.z);
+    if(d<bd){ bd=d; bi=i; }
+  }
+  return bi;
+}
+function synthSpur(is){        /* gate 无支线：主航道最近点 → 港位 直线 */
+  var hb=harborOf(is), m={x:is.x+hb.ex*hb.d, z:is.z+hb.ez*hb.d};
+  var A=ROUTE[routeIndexOf(m)], seg=[], n=8;
+  for(var s=0;s<=n;s++){
+    var u=s/n;
+    seg.push(new THREE.Vector3(A.x+(m.x-A.x)*u, ROUTE_Y, A.z+(m.z-A.z)*u));
+  }
+  return seg;
+}
+function sailPath(fromIs, toIs){
+  var pts=[], hbf=harborOf(fromIs), i;
+  var p0f=landingPath(fromIs).dock;            /* 船当前泊位（甲板外端） */
+  pts.push(new THREE.Vector3(p0f.x+hbf.ex*0.11, ROUTE_Y+0.018, p0f.z+hbf.ez*0.11));
+  var spurA=SPUR_BY_ID[fromIs.cfg.id]||synthSpur(fromIs);
+  for(i=spurA.length-1;i>=0;i--) pts.push(spurA[i]);          /* 退出支线 */
+  var spurB=SPUR_BY_ID[toIs.cfg.id]||synthSpur(toIs);
+  var ia=routeIndexOf(spurA[0]), ib=routeIndexOf(spurB[0]), N=ROUTE.length;
+  var fwd=(ib-ia+N)%N, bwd=(ia-ib+N)%N;
+  var dir=fwd<=bwd?1:-1, cnt=fwd<=bwd?fwd:bwd;                /* 主航道走近方向 */
+  for(i=1;i<cnt;i++) pts.push(ROUTE[(ia+dir*i+N)%N]);
+  for(i=0;i<spurB.length;i++) pts.push(spurB[i]);             /* 进目标支线 */
+  var hbt=harborOf(toIs), p0t=landingPath(toIs).dock;
+  pts.push(new THREE.Vector3(p0t.x+hbt.ex*0.11, ROUTE_Y+0.018, p0t.z+hbt.ez*0.11));
+  return pts;
+}
+function polylineLUT(pts){
+  var cum=[0], L=0;
+  for(var i=1;i<pts.length;i++){
+    L+=Math.hypot(pts[i].x-pts[i-1].x, pts[i].z-pts[i-1].z);
+    cum.push(L);
+  }
+  return {pts:pts, cum:cum, total:L||1e-6};
+}
+function lutAt(lut, s){        /* 弧长 → 点 + 段方向 */
+  var pts=lut.pts, cum=lut.cum;
+  s=Math.max(0, Math.min(lut.total, s));
+  for(var i=1;i<cum.length;i++){
+    if(cum[i]>=s){
+      var a=pts[i-1], b=pts[i], seg=cum[i]-cum[i-1]||1e-6, w=(s-cum[i-1])/seg;
+      return {x:a.x+(b.x-a.x)*w, y:a.y+(b.y-a.y)*w, z:a.z+(b.z-a.z)*w,
+              dx:b.x-a.x, dz:b.z-a.z};
+    }
+  }
+  var e=pts[pts.length-1];
+  return {x:e.x, y:e.y, z:e.z, dx:1, dz:0};
+}
+function nearestCurveU(curve, p){
+  var best=0, bd=1e9;
+  for(var i=0;i<=100;i++){
+    var u=i/100, q=curve.getPoint(u);
+    var d=(q.x-p.x)*(q.x-p.x)+(q.z-p.z)*(q.z-p.z);
+    if(d<bd){ bd=d; best=u; }
+  }
+  return best;
+}
+function startVoyage(toIs){
+  if(!walkOn || !walkIsle || voyage || !toIs || toIs===walkIsle) return;
+  var fromIs=walkIsle, hbf=harborOf(fromIs);
+  if(!hbf) return;
+  var curve=landingPath(fromIs).curve;
+  var boardPt=curve.getPoint(0.5);
+  if(Math.hypot(walker.position.x-boardPt.x, walker.position.z-boardPt.z)>0.30) return;
+  var pts=sailPath(fromIs, toIs);
+  if(pts.length<4) return;
+  var lut=polylineLUT(pts);
+  var u0=nearestCurveU(curve, walker.position);
+  var zIf=isleZoom(fromIs.cfg, fromIs.shape);
+  var zIt=isleZoom(toIs.cfg, toIs.shape);
+  exitWalk();                                  /* 退出漫游态但保留小人登船 */
+  walker.visible=true;
+  closeWork(true); hideVoy();
+  var p0f=landingPath(fromIs).dock;
+  voyage={phase:'board', from:fromIs, to:toIs, curve:curve, lut:lut,
+          t0:performance.now(), boardDur:2600, u0:u0,
+          start:{x:walker.position.x, y:walker.position.y, z:walker.position.z},
+          camFx:p0f.x+hbf.ex*0.12, camFz:p0f.z+hbf.ez*0.12,
+          camZ:Math.max(0.14, zIf*0.55),
+          sailDur:Math.max(6000, Math.min(22000, lut.total/0.33*1000)),
+          sailZ:Math.min(0.50, Math.max(0.12, Math.max(zIf,zIt)*0.45)),
+          revealed:false, fx:focusX, fz:focusZ, yaw:0};
+  camTween=null;
+  bH.textContent='乘船 · '+(ISLE_SHORT[toIs.cfg.id]||toIs.cfg.id);
+  tip('航行中 · 点一下可跳过');
+}
+function stepVoyage(dt){
+  if(!voyage) return;
+  var V=voyage, now=performance.now();
+  if(V.phase==='board'){
+    var p=(V.hold!=null) ? V.hold : Math.min(1,(now-V.t0)/V.boardDur);
+    var e=p*p*(3-2*p);
+    var u=Math.max(0.02, V.u0+(0.02-V.u0)*e);
+    var pt=V.curve.getPoint(u);
+    var kbl=Math.min(1, p/0.30);               /* 前 30%：从自由走位置并入曲线 */
+    walker.position.set(
+      V.start.x+(pt.x-V.start.x)*kbl,
+      V.start.y+(pt.y-V.start.y)*kbl,
+      V.start.z+(pt.z-V.start.z)*kbl);
+    var nxt=V.curve.getPoint(Math.min(1, u+0.02));
+    walker.rotation.y=Math.atan2(nxt.x-pt.x, nxt.z-pt.z);
+    var gait=Math.min(1, Math.abs(V.u0-u)*26);
+    var sw=Math.sin(now*0.014)*0.42*gait;
+    legL.rotation.x=sw; legR.rotation.x=-sw;
+    /* 镜头滑向码头，看小人上船 */
+    var kc=Math.min(1, dt*2.2);
+    focusX+=(V.camFx-focusX)*kc; focusZ+=(V.camFz-focusZ)*kc;
+    zoom+=(V.camZ-zoom)*Math.min(1, dt*1.8);
+    phi+=(0.94-phi)*Math.min(1, dt*1.8);
+    lookY+=(0.0-lookY)*kc;
+    if(p>=1){
+      V.phase='sail'; V.t0=now;
+      V.fx=boat.position.x; V.fz=boat.position.z; V.yaw=boat.rotation.y;
+      legL.rotation.x=0; legR.rotation.x=0;
+    }
+  } else {
+    var sp=(V.hold!=null) ? V.hold : Math.min(1,(now-V.t0)/V.sailDur);
+    var q=sp<0.5 ? 2*sp*sp : 1-2*(1-sp)*(1-sp);        /* 起航/进港各缓一端 */
+    var st=lutAt(V.lut, q*V.lut.total);
+    boat.position.set(st.x, ROUTE_Y+0.018+Math.sin(now*0.0017)*0.004, st.z);
+    var ty=Math.atan2(st.dx, st.dz)-Math.PI/2;         /* 船头=本地+x → bow=(cosY,-sinY) */
+    var dyw=((ty-V.yaw+Math.PI*3)%(Math.PI*2))-Math.PI;
+    V.yaw+=dyw*Math.min(1, dt*6);
+    boat.rotation.y=V.yaw;
+    boat.rotation.z=Math.sin(now*0.00125)*0.028;
+    boatWake.material.opacity=0.30;
+    /* 小人站船尾（船头本地 +x → 正面朝船头需 +π/2） */
+    var co=Math.cos(V.yaw), si=Math.sin(V.yaw);
+    walker.position.set(boat.position.x-co*0.10, boat.position.y+0.026, boat.position.z+si*0.10);
+    walker.rotation.y=V.yaw+Math.PI/2;
+    /* 镜头拉远跟船，theta 留给用户 */
+    var kf=Math.min(1, dt*2.8);
+    V.fx+=(st.x-V.fx)*kf; V.fz+=(st.z-V.fz)*kf;
+    focusX=V.fx; focusZ=V.fz;
+    zoom+=(V.sailZ-zoom)*Math.min(1, dt*1.4);
+    phi+=(1.04-phi)*Math.min(1, dt*1.4);
+    lookY+=(0.0-lookY)*Math.min(1, dt*2);
+    if(sp>0.5 && !V.revealed){                 /* 半程渐显目标岛 */
+      V.revealed=true;
+      for(var i2=0;i2<isles.length;i2++)
+        isles[i2].grp.visible=(isles[i2]===V.from||isles[i2]===V.to);
+    }
+    if(sp>=1){
+      /* 到港：船落泊位（与 animate 停泊分支同位同向），交接上岸镜轨 */
+      var hbt=harborOf(V.to), dk=landingPath(V.to).dock;
+      boat.position.set(dk.x+hbt.ex*0.11, ROUTE_Y+0.020, dk.z+hbt.ez*0.11);
+      boat.rotation.y=-Math.atan2(-hbt.ez,-hbt.ex);
+      boat.rotation.z=0;
+      var toIs=V.to;
+      voyage=null;
+      startLanding(toIs, true);
+    }
+  }
+}
+if(FX_ON){
+  /* 01 入口 · 石门青光呼吸（复用已有 glow，零新增 drawcall） */
+  var gIsle=isleById('gate');
+  if(gIsle && gIsle.cfg.portalGlow) addFx({k:'pulse', is:gIsle, mat:gIsle.cfg.portalGlow, ph:0.4, o:null});
+
+  /* 02 内容号 · 屋顶信号点上下浮动 */
+  var bIsle=isleById('houseBlue'), bp={x:bIsle.x+bIsle.lx, y:bIsle.ly+0.23, z:bIsle.z+bIsle.lz};
+  var sig=new THREE.Mesh(new THREE.OctahedronGeometry(0.026), fxMat(0x6fe0ff,0.80,1.0));
+  sig.position.set(bp.x,bp.y,bp.z);
+  addFx({k:'signal', is:bIsle, o:sig, ph:0.8, bx:bp.x, by:bp.y, bz:bp.z});
+
+  /* 03 游戏岛 · 风车叶片（已有 cfg.blades，animate 里已转）—— 不新增 */
+
+  /* 04 瞭望塔 · 一束慢慢扫过的光 */
+  var lIsle=isleById('lookout'), lp={x:lIsle.x+lIsle.lx, y:lIsle.ly+0.25, z:lIsle.z+lIsle.lz};
+  var beamGeo=new THREE.BufferGeometry();
+  beamGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+    0,0,0,  0.44,-0.014,-0.095,  0.44,-0.014,0.095
+  ],3));
+  beamGeo.computeVertexNormals();
+  var beam=new THREE.Mesh(beamGeo, fxMat(0xffe6ae,0.30,0.66));
+  beam.position.set(lp.x,lp.y,lp.z);
+  addFx({k:'beam', is:lIsle, o:beam, ph:1.9});
+
+  /* 05 数据看板 · 木屋炊烟 */
+  var wIsle=isleById('houseWood'), wp={x:wIsle.x+wIsle.lx-0.026, y:wIsle.ly+0.24, z:wIsle.z+wIsle.lz};
+  var smokeGeo=new THREE.BufferGeometry();
+  smokeGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(4*3),3));
+  var smoke=new THREE.Points(smokeGeo, fxMat(0xffffff,0.46,0.30,true,0.075));
+  smoke.frustumCulled=false;
+  addFx({k:'smoke', is:wIsle, o:smoke, n:4, ph:2.3, bx:wp.x, by:wp.y, bz:wp.z});
+
+  /* 06 OASIS · 樱花瓣绕亭飘落 */
+  var pIsle=isleById('pavilion'), pp={x:pIsle.x+pIsle.lx, y:pIsle.ly+0.32, z:pIsle.z+pIsle.lz};
+  var petalGeo=new THREE.BufferGeometry();
+  petalGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(7*3),3));
+  var petals=new THREE.Points(petalGeo, fxMat(0xffd6e4,0.95,0.72,true,0.068));
+  petals.frustumCulled=false;
+  addFx({k:'petals', is:pIsle, o:petals, n:7, ph:3.1, bx:pp.x, by:pp.y, bz:pp.z});
+
+  /* 07 鸟居 · 海面涟漪两圈交替扩散 */
+  var tIsle=isleById('torii');
+  for(var ri=0; ri<2; ri++){
+    var ring=new THREE.Mesh(new THREE.RingGeometry(0.085,0.098,28).rotateX(-Math.PI/2),
+                            fxMat(0xdaf9ff,0.40,0.62));
+    ring.position.set(tIsle.x+0.98, ROUTE_Y+0.003, tIsle.z+0.26);
+    addFx({k:'ripple', is:tIsle, o:ring, ph:ri*0.5});
+  }
+}
+
+/* ---- 海 ---- */
+var sea = buildSea(isles);
+scene.add(sea);
+
+/* ---- 云 ---- */
+var cloudMat = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.98, metalness:0,
+  emissive:0xd8ecf8, emissiveIntensity:0.42, transparent:true, opacity:0.97});
+function makeCloud(seed){
+  var r = mulberry32(seed);
+  var g = new THREE.Group();
+  var spec = [
+    [-0.190,-0.012,0.124],[0.000, 0.020,0.158],[0.188,-0.010,0.126],
+    [-0.075, 0.108,0.104],[0.088, 0.094,0.094],[0.002, 0.156,0.076]
+  ];
+  for(var i=0;i<spec.length;i++){
+    var m = new THREE.Mesh(new THREE.SphereGeometry(spec[i][2], 13, 10), cloudMat);
+    m.position.set(spec[i][0]+(r()-0.5)*0.020, spec[i][1]+(r()-0.5)*0.016, (r()-0.5)*0.05);
+    g.add(m);
+  }
+  return g;
+}
+var sky = new THREE.Group(); scene.add(sky);
+var cloudList = [];
+(function(){
+  var r = mulberry32(606);
+  for(var i=0;i<5;i++){
+    var c = makeCloud(700+i*13);
+    // 云放在群岛外围高处，不压岛顶
+    var a = -2.6 + i*0.62 + r()*0.3;
+    var rad = 7.5 + r()*3.4;
+    c.position.set(Math.cos(a)*rad, 1.10 + r()*0.55, Math.sin(a)*rad);
+    c.scale.setScalar(0.42 + r()*0.26);
+    c.userData.ph = r()*TAU;
+    sky.add(c);
+    cloudList.push(c);
+  }
+})();
+
+/* 夜里的萤火虫：每岛一小撮，飘在草地上方 */
+var fireflies = (function(){
+  var cv = document.createElement('canvas'); cv.width = cv.height = 32;
+  var c2 = cv.getContext('2d');
+  var gr = c2.createRadialGradient(16,16,0,16,16,16);
+  gr.addColorStop(0,   'rgba(255,250,222,1)');
+  gr.addColorStop(0.30,'rgba(255,228,146,0.66)');
+  gr.addColorStop(1,   'rgba(255,206,88,0)');
+  c2.fillStyle = gr; c2.fillRect(0,0,32,32);
+  var per = 9, N = per*isles.length;
+  var pos = new Float32Array(N*3), base = new Float32Array(N*3), ph = new Float32Array(N);
+  var r = mulberry32(90210);
+  for(var k=0;k<isles.length;k++){
+    var is = isles[k];
+    for(var i=0;i<per;i++){
+      var idn = k*per+i;
+      var a = r()*TAU, rad = 0.18 + Math.sqrt(r())*0.80;
+      base[idn*3]   = is.x + Math.cos(a)*rad*is.shape.sx*0.94;
+      base[idn*3+1] = 0.035 + r()*0.16 + hillAt(0.2, is.cfg);
+      base[idn*3+2] = is.z + Math.sin(a)*rad*is.shape.sz*0.94;
+      pos[idn*3]=base[idn*3]; pos[idn*3+1]=base[idn*3+1]; pos[idn*3+2]=base[idn*3+2];
+      ph[idn] = r()*TAU;
+    }
+  }
+  var gm = new THREE.BufferGeometry();
+  gm.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  var mat = new THREE.PointsMaterial({size:0.075, map:new THREE.CanvasTexture(cv), transparent:true,
+    opacity:0, depthWrite:false, blending:THREE.AdditiveBlending, color:0xffeaa2, sizeAttenuation:true});
+  var pts = new THREE.Points(gm, mat);
+  pts.frustumCulled = false;
+  pts.renderOrder = 10;
+  scene.add(pts);
+  return {attr:gm.getAttribute('position'), base:base, ph:ph, mat:mat, N:N};
+})();
+
+/* 夜里的暖光晕：每座岛的地标底下各一团 */
+var lampGlow = (function(){
+  var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  var c2 = cv.getContext('2d');
+  var g2 = c2.createRadialGradient(32,32,0,32,32,32);
+  g2.addColorStop(0,   'rgba(255,232,168,0.95)');
+  g2.addColorStop(0.26,'rgba(255,198,108,0.52)');
+  g2.addColorStop(0.60,'rgba(255,172,72,0.16)');
+  g2.addColorStop(1,   'rgba(255,160,60,0)');
+  c2.fillStyle = g2; c2.fillRect(0,0,64,64);
+  var mat = new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv), transparent:true,
+    opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, color:0xffd08a});
+  for(var i=0;i<isles.length;i++){
+    var is = isles[i];
+    var sp = new THREE.Sprite(mat);
+    sp.position.set(is.x + is.lx, is.ly + 0.150, is.z + is.lz);
+    sp.scale.setScalar(0.27);
+    sp.renderOrder = 11;
+    scene.add(sp);
+  }
+  return {mat:mat};
+})();
+
+/* ============ 相机 ============
+   相机距离只由「群岛取景」决定，进岛靠 zoom 缩放表达。
+   这样模式切换不会因为 baseRadius 突变而跳一下 */
+var THETA0 = 0.04, PHI_ARCH = 0.668, PHI_ISLE = 0.705;
+var theta = THETA0, phi = PHI_ARCH, zoom = 1, baseRadius = 16;
+var focusX = 0, focusZ = 0, lookY = null;
+
+function archFitW(){ return camera.aspect < 0.9 ? 11.9 : 12.4; }
+function archFitH(){ return camera.aspect < 0.9 ? 10.2 : 10.0; }
+function defaultLookY(){ return 0.0; }
+
+function fitCamera(){
+  var aspect = camera.aspect || 1;
+  var hv = camera.fov*Math.PI/360;
+  var hh = Math.atan(Math.tan(hv)*aspect);
+  var fit = Math.max(archFitH()/(2*Math.tan(hv)), archFitW()/(2*Math.tan(hh)));
+  /* 窄屏留边给「标签」和圆弧外扩的海床：1.00 会让最外侧岛贴死画面边缘 */
+  var margin = aspect < 0.75 ? 1.08 : (aspect < 1.15 ? 1.01 : 1.03);
+  baseRadius = fit * margin;
+  // 雾跟着基准距离缩放：竖屏要退到 47 单位，写死 26/50 会把群岛整个埋掉
+  if(scene.fog){
+    scene.fog.near = baseRadius*1.16;
+    scene.fog.far  = baseRadius*2.45;
+  }
+}
+/* 进岛的目标 zoom：沿用单岛版的比例（宽 1.21 / 高 1.10 倍），
+   算出来是一段相机距离，再除以群岛的基准距离换成 zoom */
+function isleZoom(cfg, shape){
+  var aspect = camera.aspect || 1;
+  var hv = camera.fov*Math.PI/360;
+  var hh = Math.atan(Math.tan(hv)*aspect);
+  var fw = shape.sx*2*1.30, fh = shape.sz*2*1.16;
+  var fit = Math.max(fh/(2*Math.tan(hv)), fw/(2*Math.tan(hh)));
+  return Math.min(1, fit/baseRadius);
+}
+function updateCamera(){
+  var r = baseRadius*zoom;
+  camera.position.set(focusX + r*Math.sin(phi)*Math.sin(theta), r*Math.cos(phi),
+                      focusZ + r*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(focusX, lookY === null ? defaultLookY() : lookY, focusZ);
+  camera.updateMatrixWorld(true);
+}
+
+/* ---- 缓动 ---- */
+var SNAP = location.search.indexOf('snap=1') >= 0;
+if(SNAP) document.documentElement.classList.add('snap');
+var camTween = null;
+function easeTo(tp, tt, tz, fx, fz, dur, ly){
+  var curLY = (lookY === null ? defaultLookY() : lookY);
+  camTween = {t0: performance.now(), dur: SNAP ? 1 : (dur || 560),
+    a:{th:theta, ph:phi, z:zoom, fx:focusX, fz:focusZ, ly:curLY},
+    b:{th:tt, ph:tp, z:tz,
+       fx:(fx === undefined ? focusX : fx), fz:(fz === undefined ? focusZ : fz),
+       ly:(ly === undefined ? curLY : ly)}};
+  // SNAP 下直接落终态：截图环境里 enterIsle 之后可能一帧都不剩，
+  // 只把 dur 设成 1 是不够的 —— 缓动压根没机会跑
+  if(SNAP){
+    var B = camTween.b;
+    theta = B.th; phi = B.ph; zoom = B.z;
+    focusX = B.fx; focusZ = B.fz; lookY = B.ly;
+    camTween = null;
+    updateCamera();
+    renderer.render(scene, camera);   // 截图环境里 rAF 可能已停，补一次重绘
+  }
+}
+function stepTween(){
+  if(!camTween) return;
+  var k = Math.min(1, (performance.now()-camTween.t0)/camTween.dur);
+  var e = 1-Math.pow(1-k, 3);
+  var A = camTween.a, B = camTween.b;
+  theta = A.th + (B.th-A.th)*e;
+  phi   = A.ph + (B.ph-A.ph)*e;
+  zoom  = A.z  + (B.z -A.z )*e;
+  focusX = A.fx + (B.fx-A.fx)*e;
+  focusZ = A.fz + (B.fz-A.fz)*e;
+  lookY  = A.ly + (B.ly-A.ly)*e;
+  if(k >= 1) camTween = null;
+}
+
+/* ============ 模式：群岛 / 单岛 ============ */
+var MODE = 'arch', curIsle = null, autoSpin = true;
+
+/* 进岛就只留这一座：邻近岛会从视野边缘挤进来，把「你在一座岛上」的
+   空间感打碎。hide 掉以后镜头怎么转都是孤岛，正好是单岛版的味道 */
+function showOnly(is){
+  for(var i=0;i<isles.length;i++) isles[i].grp.visible = (is === null || isles[i] === is);
+}
+/* 小件只在岛内显示：总览时它们不到一个像素，纯属浪费 */
+function setDetail(on){
+  for(var i=0;i<isles.length;i++){
+    var d = isles[i].cfg.detail;
+    if(!d) continue;
+    var show = on && (isles[i] === curIsle);
+    for(var j=0;j<d.length;j++) d[j].visible = show;
+  }
+}
+function enterIsle(id, instant){
+  var is = null;
+  for(var i=0;i<isles.length;i++) if(isles[i].cfg.id === id) is = isles[i];
+  if(!is) return;
+  curIsle = is;
+  MODE = 'isle';
+  closeWork(true);
+  var z = isleZoom(is.cfg, is.shape);
+  var dur = instant || SNAP ? 1 : 900;
+  easeTo(PHI_ISLE, theta, z, is.x, is.z, dur, -0.02);
+  if(instant || SNAP) showOnly(is);
+  else setTimeout(function(){ if(curIsle === is) showOnly(is); }, 560);
+  setDetail(true);
+  backBtn.hidden = false;
+  bK.textContent = 'ISLE · 0' + (isles.indexOf(is)+1) + ' / 07';
+  bH.textContent = WORKS[id] ? WORKS[id].title : id;
+  hintEl.style.opacity = '0';
+}
+function exitArch(instant){
+  landSeq=null; landHarbor=null;
+  voyage=null; hideVoy();        /* 航程中退出：直接回总览，船回巡航 */
+  if(walkOn) exitWalk(); else if(walker) walker.visible=false;
+  MODE = 'arch';
+  curIsle = null;
+  closeWork(true);
+  var dur = instant || SNAP ? 1 : 900;
+  easeTo(PHI_ARCH, theta, 1, 0, 0, dur, 0);
+  showOnly(null);
+  setDetail(false);
+  backBtn.hidden = true;
+  bK.textContent = 'ARCHIPELAGO · 07 ISLES';
+  bH.textContent = '群岛';
+}
+backBtn.addEventListener('click', function(){ exitArch(); });
+
+/* ============ 作品卡 ============ */
+var curWork = null;
+function openWork(id){
+  var w = WORKS[id];
+  if(!w) return;
+  curWork = id;
+  sTag.textContent = w.tag;
+  var n = WORK_SEQ.indexOf(id);
+  sIdx.textContent = (n >= 0 ? ('0'+(n+1)).slice(-2) : '--') + ' / ' + ('0'+WORK_SEQ.length).slice(-2);
+  sTitle.textContent = w.title;
+  sSub.textContent   = w.sub;
+  sDesc.textContent  = w.desc;
+  sList.innerHTML = '';
+  for(var i=0;i<w.list.length;i++){
+    var li = document.createElement('li');
+    li.textContent = w.list[i];
+    sList.appendChild(li);
+  }
+  sheet.classList.add('on');
+  appEl.classList.add('sheet-open');
+  if(curIsle) curIsle.dot.visible = false;
+  autoSpin = false;
+  document.getElementById('spin').classList.remove('on');
+  // 卡片从底部起来会吃掉下半屏，注视点压低，建筑就落到上半屏
+  // （自由走态跳过：相机焦点由跟随器接管，不能被缓动抢走）
+  if(MODE === 'isle' && curIsle && curIsle.cfg.id === id && !walkOn){
+    var is = curIsle;
+    easeTo(PHI_ISLE, theta, isleZoom(is.cfg,is.shape)*1.24, is.x+is.lx*0.40, is.z+is.lz*0.42, 620, -0.30);
+  }
+}
+function closeWork(silent){
+  if(!curWork) return;
+  var wasId = curWork;
+  curWork = null;
+  sheet.classList.remove('on');
+  appEl.classList.remove('sheet-open');
+  if(curIsle) curIsle.dot.visible = true;
+  if(silent || walkOn) return;    /* 自由走态不做相机缓动，焦点归跟随器 */
+  autoSpin = true;
+  document.getElementById('spin').classList.add('on');
+  if(MODE === 'isle' && curIsle){
+    var is = curIsle;
+    easeTo(PHI_ISLE, theta, isleZoom(is.cfg,is.shape), is.x, is.z, 620, -0.02);
+  } else {
+    easeTo(PHI_ARCH, theta, 1, 0, 0, 620, 0);
+  }
+}
+document.getElementById('sheetX').addEventListener('click', function(){ closeWork(); });
+
+/* ============ 拾取 ============ */
+var ray = new THREE.Raycaster();
+var ndc = new THREE.Vector2();
+function pick(clientX, clientY){
+  if(landSeq){ finishLanding(); return true; }   /* 过场中任意点击 = 跳过 */
+  if(voyage){                                    /* 航程中点击 = 跳过 */
+    voyage.t0 = performance.now() - (voyage.phase==='sail' ? voyage.sailDur : voyage.boardDur);
+    return true;
+  }
+  if(walkOn){
+    /* 自由走：点地面 = 走过去；点海/别处不动 */
+    if(walkIsle){
+      var rect = renderer.domElement.getBoundingClientRect();
+      ndc.x = ((clientX-rect.left)/rect.width)*2-1;
+      ndc.y = -((clientY-rect.top)/rect.height)*2+1;
+      ray.setFromCamera(ndc, camera);
+      var wh = ray.intersectObjects(allLand, false);
+      for(var wi3=0; wi3<wh.length; wi3++){
+        var wo=wh[wi3].object.userData||{};
+        if(wo.isleId===walkIsle.cfg.id){
+          setWalkTarget(wh[wi3].point.x, wh[wi3].point.z);
+          break;
+        }
+      }
+    }
+    return true;
+  }
+  var rect = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((clientX-rect.left)/rect.width)*2-1;
+  ndc.y = -((clientY-rect.top)/rect.height)*2+1;
+  ray.setFromCamera(ndc, camera);
+
+  if(MODE === 'arch'){
+    var hits = ray.intersectObjects(allLand.concat(allLm), false);
+    if(hits.length){
+      var hid = hits[0].object.userData && hits[0].object.userData.isleId;
+      if(hid){ startLanding(isleById(hid)); return true; }
+    }
+    return false;
+  }
+  // 单岛：只认当前岛的地标，别把隔壁岛点进来
+  if(curIsle){
+    var h2 = ray.intersectObject(curIsle.lm, false);
+    if(h2.length){ openWork(curIsle.cfg.id); return true; }
+  }
+  return false;
+}
+
+/* ============ 拖动 / 缩放 ============ */
+var pointers = {}, dragging = false, lastX = 0, lastY = 0, moved = 0, lastPinch = 0, zoomStart = 1;
+renderer.domElement.addEventListener('pointerdown', function(e){
+  try{ window.focus(); }catch(_e){}     /* 焦点自愈：iframe 里键盘事件常因没焦点而丢失 */
+  pointers[e.pointerId] = {x:e.clientX, y:e.clientY};
+  var keys = Object.keys(pointers);
+  if(keys.length === 1){ dragging = true; lastX = e.clientX; lastY = e.clientY; moved = 0; }
+  if(keys.length >= 2){
+    var k = keys.map(function(id){return pointers[id];});
+    lastPinch = Math.hypot(k[0].x-k[1].x, k[0].y-k[1].y);
+    zoomStart = walkOn ? wZoomT : zoom;
+    if(voyage) lastPinch = 0;              /* 航程中镜头由状态机驱动，双指不抢 */
+  }
+  renderer.domElement.setPointerCapture && renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove', function(e){
+  if(!pointers[e.pointerId]) return;
+  pointers[e.pointerId] = {x:e.clientX, y:e.clientY};
+  var keys = Object.keys(pointers);
+  if(keys.length >= 2){
+    var k = keys.map(function(id){return pointers[id];});
+    var d = Math.hypot(k[0].x-k[1].x, k[0].y-k[1].y);
+    if(lastPinch > 0 && d > 0){
+      if(walkOn && walkIsle){    /* 自由走：双指调的是跟随镜头目标半径 */
+        var zl=isleZoom(walkIsle.cfg,walkIsle.shape);
+        wZoomT = Math.max(zl*0.14, Math.min(zl*0.52, zoomStart*lastPinch/d));
+      } else {
+        zoom = Math.max(zoomMin(), Math.min(1.6, zoomStart*lastPinch/d));
+      }
+    }
+    return;
+  }
+  if(!dragging) return;
+  var dx = e.clientX-lastX, dy = e.clientY-lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  moved += Math.abs(dx)+Math.abs(dy);
+  if(walkOn){                    /* 自由走：拖拽=环绕小人，仰角是目标值交给平滑器 */
+    theta -= dx*0.006;
+    wPhiT = Math.max(0.55, Math.min(1.30, wPhiT - dy*0.004));
+    return;
+  }
+  theta -= dx*0.006;
+  phi = Math.max(0.30, Math.min(1.40, phi - dy*0.005));
+});
+function endPointer(e){
+  delete pointers[e.pointerId];
+  if(Object.keys(pointers).length === 0) dragging = false;
+  lastPinch = 0;
+}
+function zoomMin(){
+  if(walkOn && walkIsle) return isleZoom(walkIsle.cfg, walkIsle.shape)*0.14;
+  return MODE === 'isle' && curIsle ? isleZoom(curIsle.cfg, curIsle.shape)*0.55 : 0.62;
+}
+renderer.domElement.addEventListener('pointerup', function(e){
+  endPointer(e);
+  if(moved > 8) return;
+  pick(e.clientX, e.clientY);
+});
+renderer.domElement.addEventListener('pointercancel', endPointer);
+renderer.domElement.addEventListener('wheel', function(e){
+  e.preventDefault();
+  if(voyage) return;             /* 航程中镜头由状态机驱动 */
+  if(walkOn && walkIsle){        /* 自由走：滚轮调跟随镜头目标半径 */
+    var zl=isleZoom(walkIsle.cfg,walkIsle.shape);
+    wZoomT = Math.max(zl*0.14, Math.min(zl*0.52, wZoomT*(1+e.deltaY*0.0011)));
+    return;
+  }
+  zoom = Math.max(zoomMin(), Math.min(1.6, zoom*(1+e.deltaY*0.0011)));
+}, {passive:false});
+
+/* ============ 按钮 ============ */
+document.getElementById('spin').addEventListener('click', function(){
+  autoSpin = !autoSpin;
+  this.classList.toggle('on', autoSpin);
+});
+document.getElementById('reset').addEventListener('click', function(){
+  if(MODE === 'isle' && curIsle){
+    easeTo(PHI_ISLE, nearestTheta(THETA0), isleZoom(curIsle.cfg,curIsle.shape), curIsle.x, curIsle.z, 620, -0.02);
+  } else {
+    easeTo(PHI_ARCH, nearestTheta(THETA0), 1, 0, 0, 620, 0);
+  }
+});
+function nearestTheta(target){
+  var best = target, bestD = Math.abs(target-theta);
+  for(var k=-2;k<=2;k++){
+    var cand = target + k*TAU, d = Math.abs(cand-theta);
+    if(d < bestD){ bestD = d; best = cand; }
+  }
+  return best;
+}
+
+/* ============ 昼夜 ============ */
+var nightOn = false;
+var tintMats = [];
+(function collectTints(){
+  scene.traverse(function(o){
+    if(!o.isMesh && !o.isPoints && !o.isSprite) return;
+    var ms = Array.isArray(o.material) ? o.material : [o.material];
+    for(var i=0;i<ms.length;i++){
+      var m = ms[i];
+      if(!m || !m.color || m.userData.__tinted) continue;
+      m.userData.__tinted = true;
+      m.userData.__base = m.color.clone();
+      tintMats.push(m);
+    }
+  });
+})();
+var NIGHT_TINT = new THREE.Color(0x5c7597);
+var SEA_BASE = sea.material.color.clone();
+var shelfMats = [];
+for(var si2=0; si2<isles.length; si2++){
+  isles[si2].grp.traverse(function(o){ if(o.isMesh && o.material && o.material.isMeshBasicMaterial) shelfMats.push(o.material); });
+}
+function tintScene(on){
+  for(var i=0;i<tintMats.length;i++){
+    var m = tintMats[i];
+    if(on) m.color.copy(m.userData.__base).multiply(NIGHT_TINT);
+    else   m.color.copy(m.userData.__base);
+  }
+}
+function setNight(on){
+  nightOn = on;
+  stage.classList.toggle('night', on);
+  document.getElementById('light').classList.toggle('on', on);
+  if(on){
+    key.color.setHex(0xb9cfff);  key.intensity = 0.42;
+    hemi.color.setHex(0x456ab0); hemi.groundColor.setHex(0x0c1226); hemi.intensity = 0.22;
+    fill.color.setHex(0x8fb6ff); fill.intensity = 0.16;
+    tintScene(true);
+    sea.material.color.copy(SEA_BASE).multiplyScalar(0.62);
+    for(var sm=0; sm<shelfMats.length; sm++) shelfMats[sm].opacity = 0.52;
+    cloudMat.emissiveIntensity = 0.05;
+    ROUTE_MAT.uniforms.uColor.value.setHex(0x9fe3ff);   /* 夜里航线像浮标灯 */
+    scene.fog.color.setHex(0x16264f);
+  } else {
+    key.color.setHex(0xfff8e8);  key.intensity = 0.98;
+    hemi.color.setHex(0xe8f8ff); hemi.groundColor.setHex(0xb6cd93); hemi.intensity = 0.38;
+    fill.color.setHex(0xcfebff); fill.intensity = 0.17;
+    tintScene(false);
+    sea.material.color.copy(SEA_BASE);
+    for(var sm2=0; sm2<shelfMats.length; sm2++) shelfMats[sm2].opacity = 1.0;
+    cloudMat.emissiveIntensity = 0.42;
+    ROUTE_MAT.uniforms.uColor.value.setHex(0xf0ffff);
+    scene.fog.color.setHex(0xb9e3f1);
+  }
+  settleFx();
+}
+function settleFx(){
+  if(!SNAP) return;
+  lampGlow.mat.opacity = nightOn ? 0.88 : 0;
+  fireflies.mat.opacity = nightOn ? 0.92 : 0;
+}
+document.getElementById('light').addEventListener('click', function(){ setNight(!nightOn); settleFx(); });
+
+/* ============ 星空 ============ */
+function paintStars(){
+  if(!starsCtx) return;
+  var w = starsCv.clientWidth || stage.clientWidth;
+  var h = starsCv.clientHeight || stage.clientHeight;
+  if(!w || !h) return;
+  var dpr = Math.min(window.devicePixelRatio||1, 2);
+  starsCv.width  = Math.round(w*dpr);
+  starsCv.height = Math.round(h*dpr);
+  var g = starsCtx;
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,w,h);
+  var r = mulberry32(31415);
+  g.save();
+  g.translate(w*0.46, h*0.22);
+  g.rotate(-0.30);
+  g.scale(1, 0.22);
+  var mrad = Math.max(w,h)*0.72;
+  var mg = g.createRadialGradient(0,0,0,0,0,mrad);
+  mg.addColorStop(0,   'rgba(182,203,255,0.16)');
+  mg.addColorStop(0.46,'rgba(150,176,240,0.075)');
+  mg.addColorStop(1,   'rgba(140,168,235,0)');
+  g.fillStyle = mg;
+  g.beginPath(); g.arc(0,0,mrad,0,TAU); g.fill();
+  g.restore();
+
+  var n = Math.max(120, Math.min(520, Math.round(w*h/2100)));
+  for(var i=0;i<n;i++){
+    var x = r()*w;
+    var y = Math.pow(r(), 1.45)*h*0.96;
+    var q = r();
+    var rad = q > 0.985 ? 1.7 + r()*0.8 : (q > 0.90 ? 1.05 : 0.50 + r()*0.42);
+    var a   = q > 0.90  ? 0.70 + r()*0.30 : 0.22 + r()*0.42;
+    var col = q > 0.93 ? '206,226,255' : (q > 0.80 ? '255,246,228' : '232,240,255');
+    if(q > 0.985){
+      var gg = g.createRadialGradient(x,y,0,x,y,rad*6);
+      gg.addColorStop(0,'rgba('+col+',0.40)');
+      gg.addColorStop(1,'rgba('+col+',0)');
+      g.fillStyle = gg;
+      g.beginPath(); g.arc(x,y,rad*6,0,TAU); g.fill();
+    }
+    g.beginPath();
+    g.arc(x, y, rad, 0, TAU);
+    g.fillStyle = 'rgba('+col+','+a.toFixed(3)+')';
+    g.fill();
+  }
+}
+
+/* ============ 尺寸 ============ */
+function resize(){
+  var w = stage.clientWidth, h = stage.clientHeight;
+  if(!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  fitCamera();
+  paintStars();
+}
+window.addEventListener('resize', resize);
+
+/* ============ 标签定位 ============ */
+var _labV = new THREE.Vector3();
+function updateLabels(){
+  var W = stage.clientWidth, H = stage.clientHeight;
+  for(var i=0;i<isles.length;i++){
+    var is = isles[i];
+    var show = (MODE === 'arch');
+    var el = is.lab;
+    if(!show){ el.classList.remove('on'); continue; }
+    _labV.set(is.x, 0.98, is.z);
+    _labV.project(camera);
+    // 转到相机背后就藏起来，否则会翻到画面另一侧
+    if(_labV.z > 1 || _labV.x < -1.4 || _labV.x > 1.4 || _labV.y < -1.4 || _labV.y > 1.4){
+      el.classList.remove('on');
+      continue;
+    }
+    var px = (_labV.x*0.5+0.5)*W, py = (-_labV.y*0.5+0.5)*H;
+    /* 标签横向不出框：贴边时往内推（窄屏尤其容易切掉半截字） */
+    var lw = el.offsetWidth || 96, half = lw*0.5 + 8;
+    if(px < half) px = half;
+    if(px > W-half) px = W-half;
+    if(py < 16) py = 16;
+    if(py > H-16) py = H-16;
+    el.style.transform = 'translate(-50%,-50%) translate(' + px.toFixed(1) + 'px,' + py.toFixed(1) + 'px)';
+    el.classList.add('on');
+  }
+}
+
+/* ============ 渲染循环 ============ */
+var clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  /* 截图 / 海报模式把动画时间锁成定值：构图可复现，&t= 可挑小船的位置 */
+  var t = (HERO || SNAP) ? qNum('t', 12) : clock.getElapsedTime();
+  var dt = (HERO || SNAP || lastT===null || t<=lastT) ? 0.016 : Math.min(0.05, t-lastT);
+  lastT=t;
+  stepTween();
+  if(autoSpin && !dragging && !camTween) theta += (MODE === 'arch' ? 0.00075 : 0.0010);
+  stepLanding();          /* 上岸镜轨每帧覆写相机，必须在 autoSpin 之后 */
+  stepWalk(dt);           /* 自由走：同样覆写相机焦点，须在 updateCamera 之前 */
+  stepVoyage(dt);         /* 跨岛乘船：登船/航行/到港的状态机 */
+  updateCamera();
+  updateLabels();
+  // 云慢慢往上飘一点，别完全静止
+  for(var ci2=0; ci2<cloudList.length; ci2++){
+    var cl = cloudList[ci2];
+    cl.position.y += Math.sin(t*0.22 + cl.userData.ph)*0.00012;
+  }
+
+  // 萤火虫
+  var fo = fireflies.mat.opacity;
+  if(nightOn || fo > 0.012){
+    fireflies.mat.opacity = fo + ((nightOn?0.92:0) - fo)*0.05;
+    var arr = fireflies.attr.array, bs = fireflies.base;
+    for(var i=0;i<fireflies.N;i++){
+      var p = fireflies.ph[i];
+      arr[i*3]   = bs[i*3]   + Math.sin(t*0.52 + p)*0.022;
+      arr[i*3+1] = bs[i*3+1] + Math.sin(t*0.81 + p*1.7)*0.026;
+      arr[i*3+2] = bs[i*3+2] + Math.cos(t*0.60 + p*1.3)*0.022;
+    }
+    fireflies.attr.needsUpdate = true;
+  }
+  lampGlow.mat.opacity += ((nightOn ? 0.88 : 0) - lampGlow.mat.opacity) * 0.055;
+
+  // 圆环呼吸：群岛总览时小一点淡一点，进岛后才明显
+  DOT_MAT.opacity = (nightOn ? 0.86 : 0.52) + Math.sin(t*1.9)*0.06;
+  var ds = MODE === 'arch' ? 0.085 : 0.105;
+  for(var w2=0; w2<isles.length; w2++){
+    isles[w2].dot.scale.setScalar(ds + Math.sin(t*1.9 + w2*0.7)*0.006);
+  }
+
+  // 风车
+  for(var wi2=0; wi2<isles.length; wi2++){
+    if(isles[wi2].cfg.blades) isles[wi2].cfg.blades.rotation.z = t*0.5;
+  }
+
+  // 潮线呼吸
+  var breathe = 0.62 + Math.sin(t*1.1)*0.12;
+  var foamK = MODE === 'arch' ? 0.26 : 1.0;      // 总览七圈白边一起亮会抢过岛本身
+  for(var fi=0; fi<isles.length; fi++){
+    isles[fi].foamIn.material.opacity = breathe*foamK;
+    isles[fi].foamOut.material.opacity = (0.24 + Math.sin(t*0.9+1.2)*0.08)*foamK;
+  }
+
+  /* ---- 航线 / 小船 / 每岛微动效 ---- */
+  /* 上岸序列 / 上岸后单岛：航线网收掉，只留一艘停在码头的小船 */
+  routeGroup.visible = ROUTE_ON && ((MODE === 'arch') || !!landHarbor);
+  if(routeDash) routeDash.visible = (MODE === 'arch');
+  if(boat){
+    if(voyage){                  /* 航程中船由 stepVoyage 驱动，这里不抢 */
+      boatWake.material.opacity = 0.30;
+    } else if(landHarbor){
+      var dk=landHarbor.dock;
+      boat.position.set(dk.x+landHarbor.ex*0.11, ROUTE_Y+0.020, dk.z+landHarbor.ez*0.11);
+      boat.rotation.y = -Math.atan2(-landHarbor.ez, -landHarbor.ex);
+      boat.rotation.z = Math.sin(t*1.25)*0.030;
+      boatWake.material.opacity = 0.12;
+    } else {
+      var bp2 = routeAt(t*0.0075);
+      boat.position.set(bp2.x, ROUTE_Y + 0.018 + Math.sin(t*1.7)*0.004, bp2.z);
+      boat.rotation.y = -Math.atan2(bp2.dz, bp2.dx);
+      boat.rotation.z = Math.sin(t*1.25)*0.045;
+      boatWake.material.opacity = 0.24 + Math.sin(t*2.2)*0.07;
+    }
+  }
+  /* 航线流光：uTime 驱动彗尾游动（hero/snap 下 t 锁死 → 构图可复现）；昼夜缓动 */
+  ROUTE_MAT.uniforms.uTime.value = t;
+  ROUTE_MAT.uniforms.uOp.value     += ((nightOn ? 0.60 : 0.52) - ROUTE_MAT.uniforms.uOp.value)*0.06;
+  ROUTE_MAT.uniforms.uNight.value  += ((nightOn ? 1 : 0)       - ROUTE_MAT.uniforms.uNight.value)*0.05;
+  /* 码头：总览全亮；单岛模式只留当前岛的（岛的建筑，跟航线显隐规则不同） */
+  for(var pi2=0; pi2<pierGroup.children.length; pi2++){
+    var pc=pierGroup.children[pi2];
+    pc.visible = (MODE === 'arch') || (!!curIsle && curIsle.cfg.id === pc.userData.isle);
+  }
+  var xf, F, base;
+  /* 和潮线同一套分寸：总览七岛一起动会抢戏，进岛后各自明显 */
+  var fxK = (MODE === 'arch') ? 0.70 : 1.35;
+  for(xf=0; xf<fxMats.length; xf++){
+    var u = fxMats[xf].userData;
+    u.base += ((nightOn ? u.nightOp : u.dayOp) - u.base)*0.06;
+    u.shown = Math.min(1, u.base*fxK);
+  }
+  for(xf=0; xf<isleFx.length; xf++){
+    F = isleFx[xf];
+    if(F.o) F.o.visible = (MODE === 'arch' || curIsle === F.is);
+    base = F.o ? F.o.material.userData.shown : 0;
+    switch(F.k){
+      case 'pulse':
+        F.mat.opacity = Math.min(1, ((nightOn ? 0.90 : 0.58) + Math.sin(t*1.3 + F.ph)*0.20)*fxK);
+        break;
+      case 'signal':
+        F.o.position.y = F.by + Math.sin(t*1.15 + F.ph)*0.032;
+        F.o.rotation.y = t*0.7;
+        F.o.material.opacity = base*(0.72 + Math.sin(t*2.1 + F.ph)*0.28);
+        break;
+      case 'beam':
+        F.o.rotation.y = t*0.42 + F.ph;
+        F.o.material.opacity = base*(0.78 + Math.sin(t*0.9 + F.ph)*0.22);
+        break;
+      case 'smoke':
+      case 'petals':
+        var arr = F.o.geometry.getAttribute('position'), rising = (F.k === 'smoke');
+        for(var q=0;q<F.n;q++){
+          var ph = F.ph + q/F.n*TAU;
+          var cyc = (t*(rising ? 0.18 : 0.13) + q/F.n)%1;
+          if(rising){
+            arr.setXYZ(q, F.bx + Math.sin(ph*1.7 + cyc*5)*0.020 + cyc*0.055,
+                          F.by + cyc*0.20,
+                          F.bz + Math.cos(ph + cyc*4)*0.018);
+          } else {
+            var ang = ph + t*0.30;
+            arr.setXYZ(q, F.bx + Math.cos(ang)*(0.18 + (q%3)*0.07),
+                          F.by - cyc*0.22,
+                          F.bz + Math.sin(ang)*(0.16 + (q%3)*0.06));
+          }
+        }
+        arr.needsUpdate = true;
+        F.o.material.opacity = base*(rising ? 0.90 : 0.95);
+        break;
+      case 'ripple':
+        var rc = (t*0.28 + F.ph)%1;
+        F.o.scale.setScalar(0.55 + rc*2.0);
+        F.o.material.opacity = base*(1-rc)*(1-rc);
+        break;
+      case 'lantern':
+        F.mat.opacity = base;   /* shown 已含 fxK：白天 0，夜里一点暖光 */
+        break;
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* ============ URL 参数（截图 / 分享用） ============ */
+if(location.search.indexOf('still=1') >= 0){
+  autoSpin = false;
+  document.getElementById('spin').classList.remove('on');
+}
+if(location.search.indexOf('night=1') >= 0 || location.search.indexOf('dusk=1') >= 0){
+  setNight(true);
+}
+
+setDetail(false);
+resize();
+
+/* 直达：?isle=windmill / ?work=windmill / ?land=pavilion（自动上岸） */
+(function(){
+  var ml = location.search.match(/[?&]land=([a-zA-Z]+)/);
+  if(ml && ml[1]){
+    var lis = isleById(ml[1]);
+    if(lis){
+      if(/[?&]wskip=1/.test(location.search)){
+        /* 出图调试：跳过上岸动画，落定即漫游态（配合 ?wtp= 摆小人） */
+        setTimeout(function(){
+          startLanding(lis, true);
+          if(landSeq){ landCam(1, landSeq); landWalk(1, landSeq); landSeq=null; }
+          if(walkReady(lis)) enterWalk(lis);
+        }, SNAP ? 60 : 40);
+      } else {
+        setTimeout(function(){ startLanding(lis, true); }, SNAP ? 60 : 40);
+      }
+    }
+    return;
+  }
+  var mi = location.search.match(/[?&]isle=([a-zA-Z]+)/);
+  var mw = location.search.match(/[?&]work=([a-zA-Z]+)/);
+  var target = (mi && mi[1]) || (mw && mw[1]);
+  if(!target) return;
+  var ok = false;
+  for(var i=0;i<isles.length;i++) if(isles[i].cfg.id === target) ok = true;
+  if(!ok) return;
+  setTimeout(function(){
+    enterIsle(target, true);
+    if(mw && mw[1]) setTimeout(function(){ openWork(mw[1]); }, SNAP ? 120 : 320);
+  }, SNAP ? 60 : 40);
+})();
+
+var hintGone = false;
+function dropHint(){
+  if(hintGone) return;
+  hintGone = true;
+  hintEl.style.opacity = '0';
+}
+setTimeout(dropHint, 9000);
+
+/* 统计 */
+var tris = 0;
+scene.traverse(function(o){
+  if(o.isMesh && o.geometry && o.geometry.attributes.position){
+    var g = o.geometry;
+    var n2 = (g.index ? g.index.count : g.attributes.position.count)/3;
+    tris += n2 * (o.isInstancedMesh ? o.count : 1);
+  }
+});
+console.info('[archipelago] 岛 ' + isles.length + ' · 物件 ' + isles.length + ' 地标 · '
+  + Math.round(tris/1000) + 'k 面 · 绘制批次 ' + renderer.info.render.calls);
+
+/* ============ 海报模式：干净画面 + 固定机位 + 导出 ============
+   ?hero=1            隐藏全部 UI、关自动旋转
+   ?snap=1&still=1    关 CSS 过渡与缓动（无头截图必带）
+   ?night=1           夜景；?isle=pavilion 可出单岛海报
+   ?th=&ph=&z=&fx=&fz=&ly=  机位微调；?dpr=2 超采样倍率
+   浏览器里按 S 键导出 PNG；?save=1 自动导出
+   正常浏览（不带 hero）完全不走这一段 */
+if(HERO){
+  document.documentElement.classList.add('hero', 'snap');
+  autoSpin = false;
+  var spinBtn = document.getElementById('spin');
+  if(spinBtn) spinBtn.classList.remove('on');
+  dropHint();
+  /* 云在世界空间随机散布，海报机位下常只露半朵在角落；默认收掉，?cloud=1 可开 */
+  if(!/[?&]cloud=1/.test(location.search)) sky.visible = false;
+  lampGlow.mat.opacity  = nightOn ? 0.88 : 0;
+  fireflies.mat.opacity = nightOn ? 0.92 : 0;
+  /* 海报是单帧：把新动效的昼夜强度直接落终值，不等逐帧 lerp */
+  for(var hfi=0; hfi<fxMats.length; hfi++){
+    var hu=fxMats[hfi].userData;
+    hu.base = nightOn ? hu.nightOp : hu.dayOp;
+    hu.shown = Math.min(1, hu.base*(MODE === 'arch' ? 0.70 : 1.35));
+  }
+  ROUTE_MAT.uniforms.uTime.value     = qNum('t', 12);
+  ROUTE_MAT.uniforms.uOp.value       = nightOn ? 0.60 : 0.52;
+  ROUTE_MAT.uniforms.uNight.value    = nightOn ? 1 : 0;
+  ROUTE_MAT.uniforms.uColor.value.setHex(nightOn ? 0x9fe3ff : 0xf0ffff);
+
+  function heroShot(){
+    camTween = null;                       // 别让任何缓动把机位拉走
+    var zA = qNum('z', NaN), fxA = qNum('fx', NaN), fzA = qNum('fz', NaN);
+    var inIsle = (MODE === 'isle' && curIsle);
+    theta  = qNum('th', THETA0);
+    phi    = qNum('ph', inIsle ? PHI_ISLE : PHI_ARCH);
+    zoom   = isNaN(zA) ? (inIsle ? isleZoom(curIsle.cfg, curIsle.shape) : 1) : zA;
+    focusX = isNaN(fxA) ? (inIsle ? curIsle.x : 0) : fxA;
+    focusZ = isNaN(fzA) ? (inIsle ? curIsle.z : 0) : fzA;
+    lookY  = qNum('ly', inIsle ? -0.02 : 0);
+    updateCamera();
+    renderer.render(scene, camera);
+  }
+  /* 等 ?isle= 直达的 enterIsle 落定后再覆盖机位 */
+  setTimeout(heroShot, 180);
+  window.__heroShot = heroShot;
+
+  function exportHeroPNG(){
+    renderer.render(scene, camera);       // 同帧内立刻取，绕开 drawing buffer 清空
+    var cv = renderer.domElement;
+    var a = document.createElement('a');
+    a.download = 'archipelago_' + (nightOn ? 'night' : 'day') + '_' + cv.width + 'x' + cv.height + '.png';
+    a.href = cv.toDataURL('image/png');
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  window.addEventListener('keydown', function(e){ if(e.key === 's' || e.key === 'S') exportHeroPNG(); });
+  if(/[?&]save=1/.test(location.search)) setTimeout(exportHeroPNG, 520);
+}
+
+/* 出图调试：?voy=<fromId>,<toId>,<board|sail>,<0-1> 把航程直接摆到指定进度 */
+(function(){
+  var vm=location.search.match(/[?&]voy=([a-zA-Z]+),([a-zA-Z]+),(board|sail),([0-9.]+)/);
+  if(!vm || SNAP || HERO) return;
+  var vFrom=isleById(vm[1]), vTo=isleById(vm[2]);
+  if(!vFrom || !vTo || !harborOf(vFrom) || !harborOf(vTo)) return;
+  var vCurve=landingPath(vFrom).curve;
+  var vPts=sailPath(vFrom, vTo), vLut=polylineLUT(vPts);
+  var zIf=isleZoom(vFrom.cfg, vFrom.shape), zIt=isleZoom(vTo.cfg, vTo.shape);
+  MODE='isle'; curIsle=vFrom;
+  landHarbor=landingPath(vFrom);
+  showOnly(vFrom); setDetail(true);
+  backBtn.hidden=false;
+  bK.textContent='ISLE · 0'+(isles.indexOf(vFrom)+1)+' / 07';
+  bH.textContent='乘船 · '+(ISLE_SHORT[vTo.cfg.id]||vTo.cfg.id);
+  walker.visible=true;
+  walker.scale.setScalar(1.2);
+  walker.position.copy(vCurve.getPoint(0.5));
+  walker.position.y=groundYAt(vFrom, walker.position.x, walker.position.z);
+  voyage={phase:vm[3], from:vFrom, to:vTo, curve:vCurve, lut:vLut,
+          t0:performance.now(), boardDur:2600, u0:0.5,
+          start:{x:walker.position.x, y:walker.position.y, z:walker.position.z},
+          camFx:vFrom.x+harborOf(vFrom).ex*(harborOf(vFrom).d+0.12),
+          camFz:vFrom.z+harborOf(vFrom).ez*(harborOf(vFrom).d+0.12),
+          camZ:Math.max(0.14, zIf*0.55),
+          sailDur:Math.max(6000, Math.min(22000, vLut.total/0.33*1000)),
+          sailZ:Math.min(0.50, Math.max(0.12, Math.max(zIf,zIt)*0.45)),
+          revealed:false, fx:focusX, fz:focusZ, yaw:0};
+  var pr=parseFloat(vm[4]);
+  voyage.hold = pr;                            /* ?voy= 冻结在指定进度（出图用） */
+  if(vm[3]==='board'){
+    var u=Math.max(0.02, 0.5+(0.02-0.5)*pr);
+    walker.position.copy(vCurve.getPoint(u));
+    var nb=vCurve.getPoint(Math.min(1,u+0.02)), pb=vCurve.getPoint(u);
+    walker.rotation.y=Math.atan2(nb.x-pb.x, nb.z-pb.z);
+    var vhf=harborOf(vFrom);
+    theta=Math.atan2(-vhf.ex,-vhf.ez);          /* 相机从海面侧看码头 */
+    var vdk=landingPath(vFrom).dock;
+    boat.position.set(vdk.x+vhf.ex*0.11, ROUTE_Y+0.020, vdk.z+vhf.ez*0.11);
+    boat.rotation.y=-Math.atan2(-vhf.ez,-vhf.ex);
+    boat.rotation.z=0;
+    focusX=voyage.camFx; focusZ=voyage.camFz;
+    zoom=voyage.camZ; phi=0.94; lookY=0;
+    voyage.t0=performance.now()-pr*voyage.boardDur;
+  } else {
+    var sp2=Math.min(1, pr), q2=sp2<0.5 ? 2*sp2*sp2 : 1-2*(1-sp2)*(1-sp2);
+    var st2=lutAt(vLut, q2*vLut.total);
+    boat.position.set(st2.x, ROUTE_Y+0.018, st2.z);
+    boat.rotation.y=Math.atan2(st2.dx, st2.dz)-Math.PI/2;
+    voyage.yaw=boat.rotation.y;
+    walker.position.set(st2.x-Math.cos(boat.rotation.y)*0.10, boat.position.y+0.026,
+                        st2.z+Math.sin(boat.rotation.y)*0.10);
+    walker.rotation.y=boat.rotation.y+Math.PI/2;
+    voyage.fx=st2.x; voyage.fz=st2.z;
+    theta=Math.atan2(-Math.cos(boat.rotation.y), Math.sin(boat.rotation.y)); /* 船尾追随视角 */
+    focusX=st2.x; focusZ=st2.z;
+    zoom=voyage.sailZ; phi=1.04; lookY=0;
+    voyage.t0=performance.now()-pr*voyage.sailDur;
+    if(sp2>0.5){
+      voyage.revealed=true;
+      for(var iv=0;iv<isles.length;iv++)
+        isles[iv].grp.visible=(isles[iv]===vFrom||isles[iv]===vTo);
+    }
+  }
+})();
+
+requestAnimationFrame(function(){ animate(); });
+
+})();
+</script>
+</body>
+</html>
