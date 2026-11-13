@@ -315,6 +315,42 @@ function mergeParts(parts){
   geo.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
   return geo;
 }
+/* P0 地基三：按面法线重新着色
+   原来树冠那 3 档绿是按「团块」随机分配（i%2 ? PAL[0] : PAL[2]），
+   颜色没带任何光向信息 —— 所以树看着像一团糊球，给了色阶也白给。
+   现在按每个三角面的法线与主光夹角，量化成 3 档：朝光最亮 / 侧面中间 / 背光最暗。
+   量化而不是连续渐变，是为了保住低模的块面感。 */
+var SHADE_L = new THREE.Vector3(-3.6, 6.4, -2.2).normalize();
+function mixHex(a, b, t){
+  return '#' + new THREE.Color(a).lerp(new THREE.Color(b), t).getHexString();
+}
+function faceShade(geo, dHex, mHex, lHex, hiT, loT){
+  var norSave = geo.attributes.normal.array.slice(0);   // 原法线是平滑的，用完还原
+  geo.computeVertexNormals();                          // 非索引几何 → 这里算出来就是面法线
+  var pos = geo.attributes.position.array;
+  var nor = geo.attributes.normal.array;
+  var col = geo.attributes.color.array;
+  var cd = new THREE.Color(dHex).convertSRGBToLinear();
+  var cm = new THREE.Color(mHex).convertSRGBToLinear();
+  var cl = new THREE.Color(lHex).convertSRGBToLinear();
+  var hi = (hiT===undefined) ? 0.50 : hiT;
+  var lo = (loT===undefined) ? 0.00 : loT;
+  for(var i=0;i<pos.length;i+=9){
+    var nx=nor[i]+nor[i+3]+nor[i+6];
+    var ny=nor[i+1]+nor[i+4]+nor[i+7];
+    var nz=nor[i+2]+nor[i+5]+nor[i+8];
+    var ln=Math.sqrt(nx*nx+ny*ny+nz*nz)||1;
+    var d=(nx*SHADE_L.x+ny*SHADE_L.y+nz*SHADE_L.z)/ln;
+    var c = (d>=hi) ? cl : ((d>=lo) ? cm : cd);
+    for(var k=0;k<9;k+=3){
+      col[i+k]=c.r; col[i+k+1]=c.g; col[i+k+2]=c.b;
+    }
+  }
+  geo.attributes.normal.array.set(norSave);             // 还原平滑法线，不动原渲染
+  geo.attributes.color.needsUpdate = true;
+  return geo;
+}
+
 var PAINT = new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.94, metalness:0, flatShading:true});
 
 function grad(stops, t){
@@ -333,7 +369,9 @@ function grad(stops, t){
 
 /* ============ 场景 ============ */
 var scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xb9e3f1, 26, 50);
+/* 大气透视：雾色取地平线附近的浅青（不是纯天空色），远处海面雾化后正好接住
+   CSS 渐变的地平线，画面上缘才会「淡出去」而不是被海面方形边缘硬切一刀。 */
+scene.fog = new THREE.Fog(0xcbe8f4, 26, 50);
 var camera = new THREE.PerspectiveCamera(28, 1, 0.1, 120);
 var renderer = new THREE.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:HERO});
 renderer.setPixelRatio(HERO ? Math.min(Math.max(qNum('dpr', 2), 1), 3)
@@ -342,14 +380,51 @@ renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.shadowMap.enabled = false;
 stage.appendChild(renderer.domElement);
 
-var hemi = new THREE.HemisphereLight(0xe8f8ff, 0xb6cd93, 0.38); scene.add(hemi);
-var key  = new THREE.DirectionalLight(0xfff8e8, 0.98);
+/* P0 地基一：真实投影 + 三光分冷暖
+   原来 shadowMap 全局关着，全场影子靠椭圆贴片伪造，物体读起来像纸模型；
+   三个光强度又接近（0.98/0.38/0.17），物体各面亮度差不到 15%，体积整个丢光。
+   现在：主光暖白略强 + 天光冷蓝压低 + 补光极弱 —— 靠冷暖差建立体感，
+   而不是靠亮度差（亮度差一拉大就发灰）。 */
+var SH_Q = HERO ? 3072 : (((navigator.maxTouchPoints||0) > 0 || window.innerWidth < 720) ? 1024 : 2048);
+var SH_R = 8.6;                        // 阴影相机半宽：总览要覆盖整个群岛
+renderer.shadowMap.enabled = location.search.indexOf('noshadow=1') < 0;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+var hemi = new THREE.HemisphereLight(0xc9e4ff, 0x9dbb78, 0.31); scene.add(hemi);
+var key  = new THREE.DirectionalLight(0xfff6ea, 0.98);
 key.position.set(-3.6, 6.4, -2.2);
-scene.add(key);
-var fill = new THREE.DirectionalLight(0xcfebff, 0.17); fill.position.set(3.4, 2.4, 3.6); scene.add(fill);
+key.castShadow = true;
+key.shadow.mapSize.set(SH_Q, SH_Q);
+/* near/far 必须收紧：光源固定在距焦点 7.67 处，场景深度只有 ±1.5，
+   用 1.2~22 这种大跨度会把深度精度浪费掉，地面就会出现条纹状自阴影 */
+key.shadow.camera.near = 4.6;
+key.shadow.camera.far  = 11.4;
+key.shadow.camera.left = -SH_R; key.shadow.camera.right  =  SH_R;
+key.shadow.camera.top  =  SH_R; key.shadow.camera.bottom = -SH_R;
+key.shadow.bias = -0.0006;
+key.shadow.normalBias = 0.02;
+scene.add(key); scene.add(key.target);
+var fill = new THREE.DirectionalLight(0x9ecbff, 0.11); fill.position.set(3.4, 2.4, 3.6); scene.add(fill);
 
 var SHADOW_DIR = new THREE.Vector2(0.854, 0.521);
-var SHADOW_LEN = 0.38;
+var SHADOW_LEN = 0.20;                 // 假影退化成接地 AO，投影交给真阴影
+
+/* 阴影相机跟着玩家走：总览要罩住整个群岛（±8.6），近景其实只需要一座岛（±2.7）。
+   覆盖范围缩 3 倍，同尺寸贴图的有效分辨率就高 3 倍 —— 近景地面那些条纹状
+   自阴影（shadow acne）主要是分辨率不够、掠射角又太平时挤出来的。 */
+var KEY_DIST = 7.67;
+var KEY_DIR  = new THREE.Vector3(-0.4694, 0.8345, -0.2869);
+function setShadowFocus(x, z, r){
+  key.position.set(x + KEY_DIR.x*KEY_DIST, KEY_DIR.y*KEY_DIST, z + KEY_DIR.z*KEY_DIST);
+  key.target.position.set(x, 0, z);
+  key.target.updateMatrixWorld();
+  key.updateMatrixWorld();
+  if(r){
+    key.shadow.camera.left = -r; key.shadow.camera.right  =  r;
+    key.shadow.camera.top  =  r; key.shadow.camera.bottom = -r;
+    key.shadow.camera.updateProjectionMatrix();
+  }
+}
 
 /* ============ 布景几何库（与单岛版同一套，原样复用） ============ */
 var GREEN_D = '#4a9b3e', GREEN_M = '#5cb34a', GREEN_L = '#6fc356';
@@ -379,7 +454,7 @@ function geoBroad(seed){
   // 顶部小团
   parts.push({g:new THREE.SphereGeometry(0.050 + r()*0.016, 8, 6),
     m:M((r()-0.5)*0.030, cy + main*0.66, (r()-0.5)*0.030, r(), r()*3, r()), c:PAL[2]});
-  return mergeParts(parts);
+  return faceShade(mergeParts(parts), mixHex(PAL[0],PAL[1],0.45), PAL[1], PAL[2], 0.45, -0.30);
 }
 function geoPine(seed){
   var r = mulberry32(seed);
@@ -393,7 +468,8 @@ function geoPine(seed){
       m:M(0, h + 0.036 + i*0.074, 0, 0, r()*1.2, 0),
       c:[ '#2f7030','#3a8138','#468f40'][i%3]});
   }
-  return mergeParts(parts);
+  /* 锥体侧面法线是水平的，与主光的点积只在 ±0.55 之间，阈值要单独定 */
+  return faceShade(mergeParts(parts), '#245a28', '#35793a', '#4b9a42', 0.20, -0.18);
 }
 function geoCherry(seed){
   var r = mulberry32(seed);
@@ -413,7 +489,7 @@ function geoCherry(seed){
   }
   parts.push({g:new THREE.SphereGeometry(0.044 + r()*0.014, 7, 5),
     m:M((r()-0.5)*0.026, cy + main*0.62, (r()-0.5)*0.026, r(), r()*3, r()), c:PINK_3});
-  return mergeParts(parts);
+  return faceShade(mergeParts(parts), '#df9ab4', '#eeb0c6', '#f9cfe0', 0.45, -0.30);
 }
 function geoPalm(seed){
   var r = mulberry32(seed);
@@ -489,7 +565,7 @@ function geoRock(seed){
       m:M((r()-0.5)*0.026, 0.011+r()*0.006, (r()-0.5)*0.026, r(),r(),r()),
       c:(i%2? '#a8a89c':'#bcbcb0')});
   }
-  return mergeParts(parts);
+  return faceShade(mergeParts(parts), '#8e8e82', '#adada0', '#ccccbf');
 }
 function geoLamp(){
   return mergeParts([
@@ -790,6 +866,28 @@ var PROF = [
   {rf:0.100,y:-0.995},{rf:0.000,y:-1.000}
 ];
 var TOP_N = 12;   // PROF[0..12] 是「岛心 → 外缘」，之后是侧壁
+/* P0 地基二：草地段径向加密
+   原来 rf 0~0.892（占岛面积八成）只有 5 个环，而 buildLand 里那几层
+   顶点色噪声（sin(px*2.6) 到 sin(px*21.5)）的波长比环间距还小，
+   插值时被直接抹平 —— 地面于是呈纯色平涂，残留的低频还变成放射状条纹。
+   这里按 0.03 步长重采草地段，环数 5 → 30，噪声才采得出来。 */
+(function(){
+  var step = 0.030, base = 4, out = [];
+  for(var i=0;i<base;i++){
+    var A = PROF[i], B = PROF[i+1];
+    var n = Math.max(1, Math.round((B.rf-A.rf)/step));
+    out.push(A);
+    for(var k=1;k<n;k++){
+      var t = k/n;
+      out.push({rf:A.rf+(B.rf-A.rf)*t, y:A.y+(B.y-A.y)*t});
+    }
+  }
+  for(var j=base;j<PROF.length;j++) out.push(PROF[j]);
+  PROF.length = 0;
+  for(var m=0;m<out.length;m++) PROF.push(out[m]);
+  TOP_N = 0;                                  // 外缘改成按 rf 峰值动态定位，不再写死索引
+  for(var q=1;q<PROF.length;q++) if(PROF[q].rf > PROF[TOP_N].rf) TOP_N = q;
+})();
 var LAND_STOPS = [
   [-1.000,'#9c8f7a'],[-0.860,'#a8977f'],[-0.740,'#b3a184'],[-0.640,'#bfac8b'],
   [-0.550,'#cbb692'],[-0.470,'#d5c09a'],[-0.400,'#ddc8a1'],[-0.340,'#e4d1a8'],
@@ -831,6 +929,9 @@ function buildLand(shape, cfg){
   var nz = mulberry32(cfg.seed*7+13);
   var gset = cfg.grass || 1;      // 草地明度：>1 偏亮，<1 偏深
   var gt = cfg.grassTint || [1,1,1];   // 草地色偏：光调亮度做不出气候差异，得真的换色
+  /* 岸线过渡：沙滩与草地的分界不再是一刀切 */
+  var SAND_C = new THREE.Color('#f6e7bc'), GRASS_C = new THREE.Color('#88c657');
+  var SAND_HI = -0.118, GRASS_LO = -0.032;   // 沙→草过渡带的高度区间
 
   for(var i=0;i<NA;i++){
     var a = i/NA*TAU;
@@ -839,18 +940,38 @@ function buildLand(shape, cfg){
       var pr = PROF[m];
       var r = R0*pr.rf;
       var y = pr.y;
-      if(pr.rf < 0.90) y += hillAt(pr.rf, cfg) + (nz()-0.5)*0.0022*(1-pr.rf/0.90);
+      /* 高度抖动要极小：地形是 flatShading，逐顶点随机高度会让每个三角面的
+         法线各偏几度，光照差 3~5%，而极坐标网格的三角形又细又长，
+         投影到屏幕上就是那片从岛心放射出去的扇形条纹。 */
+      if(pr.rf < 0.90) y += hillAt(pr.rf, cfg) + (nz()-0.5)*0.0005*(1-pr.rf/0.90);
       var px = Math.cos(a)*r*shape.sx, pz = Math.sin(a)*r*shape.sz;
       pos.push(px, y, pz);
-      c.copy(grad(LAND_STOPS, y));
-      if(y > -0.05){
-        var blot = Math.sin(px*2.6+pz*1.9)*0.085
-                 + Math.sin(px*6.3)*Math.cos(pz*5.1)*0.070
-                 + Math.sin(px*13.7+pz*9.4)*0.038
-                 + Math.sin(pz*21.5-px*4.2)*0.020
-                 + (nz()-0.5)*0.022;
+      /* 草地不按高度取色：LAND_STOPS 在 y≈0 那一段色阶极陡（0.006 内就跨两档），
+         而顶点高度本身带 ±0.001 的随机抖，一查表就被放大成色阶跳变 ——
+         相邻环因此出现明暗差，透视压缩后就是那片摩尔纹条纹。
+         草地用固定基色，所有明暗变化交给下面那段平滑噪声。 */
+      /* 沙滩 → 草地做平滑过渡：原来 y>-0.045 一把跳成草色，海岸线上就是一条
+         剃刀般的分界（也是上一轮「草地纯色平涂」的观感来源之一）。
+         现在在 SAND_HI~GRASS_LO 之间用 smoothstep 混色，草线自然散开成一段
+         半沙半草的滩涂；再往下才交给 LAND_STOPS 的湿沙/水线色阶。 */
+      if(y > SAND_HI){
+        var tg = (y - SAND_HI)/(GRASS_LO - SAND_HI);
+        tg = tg<0?0:(tg>1?1:tg);
+        tg = tg*tg*(3-2*tg);
+        c.copy(SAND_C).lerp(GRASS_C, tg);
+      } else c.copy(grad(LAND_STOPS, y));
+      if(y > SAND_HI){
+        /* 频率要配得上网格尺度：加密后径向环距约 0.038，
+           21.5 那档波长只有 0.29，每波长不到 8 个采样，直接摩尔纹成条纹。
+           砍掉最高频，把幅度让给低频 —— 出来的才是「草皮色块」而不是「斑马纹」 */
+        var blot = Math.sin(px*2.6+pz*1.9)*0.100
+                 + Math.sin(px*6.3)*Math.cos(pz*5.1)*0.098
+                 + Math.sin(px*11.3+pz*7.4)*0.030
+                 + (nz()-0.5)*0.012;
         if(pr.rf > 0.72) blot -= (pr.rf-0.72)/0.22 * 0.10;
-        var t = (1 + blot) * gset;
+        /* 噪声与明度只按「草的比例」生效：沙滩保持干净的原色，
+           否则过渡带里会糊出一层脏斑，反而比硬切更难看 */
+        var t = 1 + (blot + (gset-1))*tg;
         tint.setRGB(t*gt[0], t*gt[1], t*gt[2]);
         c.multiply(tint);
       }
@@ -1147,7 +1268,7 @@ function buildShadows(specs, grp, cfg){
   var c = new THREE.Color('#1d4414'); c.convertSRGBToLinear();
   var ang = Math.atan2(SHADOW_DIR.y, SHADOW_DIR.x);
   var ca = Math.cos(ang), sa = Math.sin(ang);
-  var LAYERS = [{k:1.00, op:0.13},{k:0.76, op:0.17},{k:0.50, op:0.22}];
+  var LAYERS = [{k:1.00, op:0.050},{k:0.76, op:0.065},{k:0.50, op:0.085}];
   for(var L=0;L<LAYERS.length;L++){
     var pos=[], col=[], idx=[], base=0;
     for(var i=0;i<specs.length;i++){
@@ -1589,6 +1710,21 @@ var ROUTE = (function(){
 /* 六条进港支线：从主航道最近点弯向各岛，碰到岛缘就停
    有支线的岛同时登记进 HARBORS —— 后面按它给每岛配码头 */
 var HARBORS = [], SPUR_BY_ID = {};
+/* 灯笼位置收集器 → 建真点光源（见 buildPierLamps） */
+var LAMP_PTS = [], LAMP_LIGHTS = [], WATER_GLOWS = [];
+/* 水面倒影用的加色柔光盘材质（7 个码头共用 1 份）。
+   ⚠ 必须定义在码头构建之前 —— 那段是顶层立即执行的 if 块，不是函数，
+   放到后面会因为 var 提升拿到 undefined，Three 回退成默认白色材质，
+   水面上就出现一块硬边白方块。 */
+var WATER_GLOW_MAT = new THREE.ShaderMaterial({
+  uniforms:{ uC:{value:new THREE.Color(0xffa95a).convertSRGBToLinear()}, uA:{value:0.0} },
+  vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader:'varying vec2 vUv; uniform vec3 uC; uniform float uA;'+
+    'void main(){ float d=length(vUv-vec2(0.5))*2.0;'+
+    'float a=1.0-smoothstep(0.0,1.0,d); a*=a;'+
+    'gl_FragColor=vec4(uC*a*uA, 1.0); }',
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+});
 var SPURS = (function(){
   var out=[];
   for(var k=0;k<isles.length;k++){
@@ -1761,17 +1897,52 @@ if(ROUTE_ON){
     pierGroup.add(pier);
     if(FX_ON){
       /* 挂灯夜光晕（世界坐标，挂 fxGroup）：白天 0，夜里一点暖光 */
-      var angL=Math.atan2(-hb.ez, hb.ex);
-      var lx2=0.140*Math.cos(angL)+0.022*Math.sin(angL);
-      var lz2=-0.140*Math.sin(angL)+0.022*Math.cos(angL);
+      /* 挂灯局部坐标 (0.140, 0.106, 0.022) 要按码头的 1.3 倍缩放折算，
+         漏乘的话光晕和点光源会缩在甲板内侧 —— 原来那点白光基本埋在木板里 */
+      var angL=Math.atan2(-hb.ez, hb.ex), PS=1.3;
+      var lx2=(0.140*Math.cos(angL)+0.022*Math.sin(angL))*PS;
+      var lz2=(-0.140*Math.sin(angL)+0.022*Math.cos(angL))*PS;
       var gGeo=new THREE.BufferGeometry();
       gGeo.setAttribute('position', new THREE.Float32BufferAttribute([
         pier.position.x+lx2, WATER_Y+0.280, pier.position.z+lz2],3));
       var gPts=new THREE.Points(gGeo, fxMat(0xffd9a0, 0.0, 0.85, true, 0.055));
       addFx({k:'lantern', is:hb.is, mat:gPts.material, o:gPts, ph:hi*0.9});
+      LAMP_PTS.push({x:pier.position.x+lx2, y:WATER_Y+0.302, z:pier.position.z+lz2});
+
+      /* 水面暖光倒影：码头周边那圈浅滩是不受光的 MeshBasicMaterial（贴岛轮廓的
+         独立环带，为了压住网格插值糊出来的光晕才这么做的），点光源在它上面照不出
+         任何光池 —— 所以另贴一片加色柔光盘当倒影，比改浅滩材质稳妥得多，
+         手机上也不增加光源数量。白天 visible=false，完全零开销。 */
+      var wg=new THREE.Mesh(new THREE.PlaneGeometry(0.82, 1.08), WATER_GLOW_MAT);
+      wg.rotation.x=-Math.PI/2;
+      wg.position.set(pier.position.x+lx2*0.62, WATER_Y+0.017, pier.position.z+lz2*0.62);
+      wg.visible=false;
+      scene.add(wg);
+      WATER_GLOWS.push(wg);
     }
   }
 }
+
+/* ============ 码头灯笼 → 真点光源 ============
+   原来灯笼只是个发光片（Points + 加色材质），夜里码头地面、木板、近岸水面
+   全是黑的 —— 一个亮斑浮在黑暗里，读不出「这里有灯」。
+   改成每个码头挂一盏真 PointLight：地面被暖光照亮，光池沿距离自然衰减。
+   成本控制：白天 visible=false（不进光源列表，零开销）；夜里才加入。
+   手机把 distance 收到 1.55 —— 点光源是逐片元循环，7 盏全开会明显吃帧。 */
+var LAMP_DIST = HAS_TOUCH ? 3.20 : 4.20;
+var LAMP_INT  = HAS_TOUCH ? 3.10 : 3.90;
+var LAMP_WARM = 0xffb264;
+function buildPierLamps(){
+  for(var i=0;i<LAMP_PTS.length;i++){
+    var q=LAMP_PTS[i];
+    var pl=new THREE.PointLight(LAMP_WARM, 0, LAMP_DIST, 1.7);
+    pl.position.set(q.x, q.y, q.z);
+    pl.visible=false;
+    scene.add(pl);
+    LAMP_LIGHTS.push(pl);
+  }
+}
+buildPierLamps();
 
 /* ============ 轨道式上岸（漫游第 ① 步） ===========
    点岛 → 镜头从等距俯视降到近海面 → 沿码头方向轨道推近 → 抬回单岛视角；
@@ -1956,6 +2127,7 @@ var keysDown={};
 function walkReady(is){ return !WALK_OFF && !SNAP && !HERO && !!is; }
 function enterWalk(is){
   walkIsle=is; walkOn=true; autoSpin=false;
+  setShadowFocus(is.x, is.z, 2.7);   /* 近景只需罩住这座岛，阴影分辨率翻三倍 */
   document.getElementById('spin').classList.remove('on');
   var zI=isleZoom(is.cfg,is.shape), portrait=camera.aspect<0.9;
   wZoom=zI; wZoomT=zI*(portrait?0.26:0.30);
@@ -1996,7 +2168,7 @@ function enterWalk(is){
   if(dpadEl) dpadEl.classList.toggle('on', !HAS_TOUCH);
   walkTarget=null;
   /* 手机：提示条会压住摇杆，直接收起；桌面端抬到方向键之上再淡出 */
-  hintEl.style.bottom='calc(126px + env(safe-area-inset-bottom))';
+  hintEl.style.bottom='calc(168px + env(safe-area-inset-bottom))';   /* 抬到乘船条（120px）之上，别叠字 */
   if(HAS_TOUCH){ joyEl.classList.add('on'); hintEl.style.display='none'; }
   else {
     hintEl.textContent='WASD / 方向键 移动 · 或点地面走过去 · 拖动转视角';
@@ -2007,6 +2179,7 @@ function enterWalk(is){
 function exitWalk(){
   walkOn=false; walkIsle=null; walker.visible=false;
   walkTarget=null;
+  setShadowFocus(0, 0, SH_R);        /* 回到总览，阴影相机罩回整个群岛 */
   hintEl.style.bottom='';
   if(hintEl.style.display==='none') hintEl.style.display='';
   if(joyEl) joyEl.classList.remove('on');
@@ -2576,9 +2749,11 @@ function fitCamera(){
   var margin = aspect < 0.75 ? 1.08 : (aspect < 1.15 ? 1.01 : 1.03);
   baseRadius = fit * margin;
   // 雾跟着基准距离缩放：竖屏要退到 47 单位，写死 26/50 会把群岛整个埋掉
+  // 0.86/1.80 是「近岛不雾、远岛雾掉 6 成」的比例：原来 1.16/2.45 比相机距离还远，
+  // 等于全场无雾 → 远近一样清晰，读不出纵深，海面那圈方形边缘也就露出来了
   if(scene.fog){
-    scene.fog.near = baseRadius*1.16;
-    scene.fog.far  = baseRadius*2.45;
+    scene.fog.near = baseRadius*0.86;
+    scene.fog.far  = baseRadius*1.80;
   }
 }
 /* 进岛的目标 zoom：沿用单岛版的比例（宽 1.21 / 高 1.10 倍），
@@ -2913,21 +3088,31 @@ function setNight(on){
     hemi.color.setHex(0x456ab0); hemi.groundColor.setHex(0x0c1226); hemi.intensity = 0.22;
     fill.color.setHex(0x8fb6ff); fill.intensity = 0.16;
     tintScene(true);
-    sea.material.color.copy(SEA_BASE).multiplyScalar(0.62);
-    for(var sm=0; sm<shelfMats.length; sm++) shelfMats[sm].opacity = 0.52;
+    sea.material.color.copy(SEA_BASE).multiplyScalar(0.44);   /* 再压一档，海才真的"入夜" */
+    for(var sm=0; sm<shelfMats.length; sm++) shelfMats[sm].opacity = 0.34;
     cloudMat.emissiveIntensity = 0.05;
     ROUTE_MAT.uniforms.uColor.value.setHex(0x9fe3ff);   /* 夜里航线像浮标灯 */
-    scene.fog.color.setHex(0x16264f);
+    scene.fog.color.setHex(0x2b4272);                   /* 对齐夜空渐变中下部，远处海面融进夜幕 */
+    for(var li2=0; li2<LAMP_LIGHTS.length; li2++){
+      LAMP_LIGHTS[li2].visible = true;
+      LAMP_LIGHTS[li2].intensity = LAMP_INT;
+    }
+    for(var gi=0; gi<WATER_GLOWS.length; gi++) WATER_GLOWS[gi].visible = true;
+    WATER_GLOW_MAT.uniforms.uA.value = 1.10;
   } else {
-    key.color.setHex(0xfff8e8);  key.intensity = 0.98;
-    hemi.color.setHex(0xe8f8ff); hemi.groundColor.setHex(0xb6cd93); hemi.intensity = 0.38;
-    fill.color.setHex(0xcfebff); fill.intensity = 0.17;
+    key.color.setHex(0xfff6ea);  key.intensity = 0.98;      /* 与 P0 日光配置保持一致 */
+    hemi.color.setHex(0xc9e4ff); hemi.groundColor.setHex(0x9dbb78); hemi.intensity = 0.31;
+    fill.color.setHex(0x9ecbff); fill.intensity = 0.11;
     tintScene(false);
     sea.material.color.copy(SEA_BASE);
-    for(var sm2=0; sm2<shelfMats.length; sm2++) shelfMats[sm2].opacity = 1.0;
-    cloudMat.emissiveIntensity = 0.42;
+    for(var sm2=0; sm2<shelfMats.length; sm2++) shelfMats[sm2].opacity = 1.0;    cloudMat.emissiveIntensity = 0.42;
     ROUTE_MAT.uniforms.uColor.value.setHex(0xf0ffff);
-    scene.fog.color.setHex(0xb9e3f1);
+    scene.fog.color.setHex(0xcbe8f4);
+    for(var li3=0; li3<LAMP_LIGHTS.length; li3++){
+      LAMP_LIGHTS[li3].intensity = 0;
+      LAMP_LIGHTS[li3].visible = false;
+    }
+    for(var gi2=0; gi2<WATER_GLOWS.length; gi2++) WATER_GLOWS[gi2].visible = false;
   }
   settleFx();
 }
