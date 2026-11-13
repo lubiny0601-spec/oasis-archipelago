@@ -321,9 +321,6 @@ function mergeParts(parts){
    现在按每个三角面的法线与主光夹角，量化成 3 档：朝光最亮 / 侧面中间 / 背光最暗。
    量化而不是连续渐变，是为了保住低模的块面感。 */
 var SHADE_L = new THREE.Vector3(-3.6, 6.4, -2.2).normalize();
-function mixHex(a, b, t){
-  return '#' + new THREE.Color(a).lerp(new THREE.Color(b), t).getHexString();
-}
 function faceShade(geo, dHex, mHex, lHex, hiT, loT){
   var norSave = geo.attributes.normal.array.slice(0);   // 原法线是平滑的，用完还原
   geo.computeVertexNormals();                          // 非索引几何 → 这里算出来就是面法线
@@ -348,6 +345,23 @@ function faceShade(geo, dHex, mHex, lHex, hiT, loT){
   }
   geo.attributes.normal.array.set(norSave);             // 还原平滑法线，不动原渲染
   geo.attributes.color.needsUpdate = true;
+  return geo;
+}
+/* 拼接两个已建好的几何。
+   faceShade 是按面法线给【整块几何】重刷顶点色的 —— 树的树干和树冠如果
+   一起丢进去，棕褐色的树干会跟着被刷成绿色（一直在犯，只是树小看不出来）。
+   所以树一律分两组：树干+枝 保持原色，树冠单独过 faceShade，最后拼起来。 */
+function concatGeo(list){
+  var pos=[], nor=[], col=[];
+  for(var k=0;k<list.length;k++){
+    var g = list[k];
+    var pa=g.attributes.position.array, na=g.attributes.normal.array, ca=g.attributes.color.array;
+    for(var i=0;i<pa.length;i++){ pos.push(pa[i]); nor.push(na[i]); col.push(ca[i]); }
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  geo.setAttribute('normal',   new THREE.Float32BufferAttribute(nor,3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
   return geo;
 }
 
@@ -427,105 +441,267 @@ function setShadowFocus(x, z, r){
 }
 
 /* ============ 布景几何库（与单岛版同一套，原样复用） ============ */
-var GREEN_D = '#4a9b3e', GREEN_M = '#5cb34a', GREEN_L = '#6fc356';
-var PINK_1 = '#f3bccd', PINK_2 = '#e9a2ba', PINK_3 = '#fad2de';
+/* ---------------- P2 造型层：树 ----------------
+   原来四类树的问题不是「不够多」，是三处结构性缺陷：
+   ① 阔叶/樱树都是「一根短杆顶一坨球」——树干埋在树冠里，没有枝，
+      轮廓是个正圆，远看像气球插在地上；
+   ② 树冠用 SphereGeometry，两极把面收成一圈细长三角，flatShading 下
+      顶和底挤成尖刺，块面疏密不均；
+   ③ 每棵树的绿都是从 3 套色板里随机抽一套，40 棵树 40 种绿，远看是一片
+      莫兰迪噪点；而棕榈和灌木压根没过 faceShade，光向完全没带进颜色。
+   这一版：ico 球做冠（面接近等边）、树干露出来、加斜枝撑出骨骼、
+   四种轮廓各自拉开（阔叶=团、樱=伞、松=塔、棕榈=羽），全岛共用一套三档色阶。 */
+
+/* 树色板：同一色相家族取暗/中/亮三档，色差交给光照，不再靠随机换绿 */
+var FOL_D='#3a7a42', FOL_M='#4a9a4e', FOL_L='#66b65a';   // 阔叶
+var PIN_D='#26573d', PIN_M='#32754b', PIN_L='#429056';   // 针叶（偏冷偏深）
+var CHR_D='#d4859f', CHR_M='#e9a8bd', CHR_L='#f9cddb';   // 樱（原色过浅，被主光打到发白）
+var PLM_D='#2b7040', PLM_M='#3b8f45', PLM_L='#54aa4d';   // 棕榈
+var BSH_D='#357a3e', BSH_M='#48994c', BSH_L='#6cb95e';   // 灌木
+
+/* ico 球：低模树冠的正确基元。三角形接近等边，没有球的极点收束 */
+function icoG(rad, det){ return new THREE.IcosahedronGeometry(rad, det===undefined?1:det); }
+
+/* 不规则化：ico 球顶点按【位置哈希】做径向扰动。
+   低模树冠最忌讳「一堆球粘成雪人」——团块之间的凹槽会把轮廓切碎，
+   远看像云朵或大脑。正确做法是「一个连续体块 + 表面起伏」：
+   按顶点坐标做稳定伪随机，同一位置的重复顶点拿到同一个扰动值，
+   面不会裂开；再交给 flatShading，出来的是自然的块面起伏。 */
+function blobGeo(rad, det, amp, seed){
+  var g = new THREE.IcosahedronGeometry(rad, det===undefined?1:det);
+  var a = g.attributes.position.array;
+  var map = {};
+  for(var i=0;i<a.length;i+=3){
+    var kx = Math.round(a[i]*1e4), ky = Math.round(a[i+1]*1e4), kz = Math.round(a[i+2]*1e4);
+    var key = kx+','+ky+','+kz;
+    var f = map[key];
+    if(f === undefined){
+      var hv = Math.sin(kx*12.9898 + ky*78.233 + kz*37.719 + seed*0.618) * 43758.5453;
+      f = 1 + ((hv - Math.floor(hv)) - 0.5) * (amp===undefined?0.20:amp);
+      map[key] = f;
+    }
+    a[i] *= f; a[i+1] *= f; a[i+2] *= f;
+  }
+  g.attributes.position.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
+
+/* 把圆柱沿任意方向摆好：算欧拉角太绕，直接用四元数把 +Y 对齐到目标方向 */
+var _dvA = new THREE.Vector3(), _dvB = new THREE.Vector3(), _dvQ = new THREE.Quaternion();
+function MAl(x,y,z, dx,dy,dz){
+  _dvA.set(dx,dy,dz);
+  if(_dvA.lengthSq() < 1e-12) _dvA.set(0,1,0);
+  _dvA.normalize();
+  _dvQ.setFromUnitVectors(_dvB.set(0,1,0), _dvA);
+  var m = new THREE.Matrix4();
+  m.compose(_pv.set(x,y,z), _dvQ, _ps.set(1,1,1));
+  return m;
+}
+/* 枝 / 叶段落：(x0,y0,z0) 是根部，(dx,dy,dz) 指向梢，r0 根粗 r1 梢细 */
+function limb(x0,y0,z0, dx,dy,dz, len, r0, r1, col, sides){
+  var d = _dvA.set(dx,dy,dz);
+  if(d.lengthSq() < 1e-12) d.set(0,1,0);
+  d.normalize();
+  return {g:new THREE.CylinderGeometry(r1, r0, len, sides||4),
+          m:MAl(x0+d.x*len*0.5, y0+d.y*len*0.5, z0+d.z*len*0.5, d.x,d.y,d.z), c:col};
+}
+/* 树冠体块：不规则 ico 球 + 垂直压扁。压扁才有「篷」的感觉，正球永远是气球 */
+function lobe(rad, x,y,z, sy, amp, seed, ry){
+  var m = new THREE.Matrix4();
+  _e.set(0, ry||0, 0);
+  _q.setFromEuler(_e);
+  m.compose(_pv.set(x,y,z), _q, _ps.set(1, sy===undefined?0.92:sy, 1));
+  return {g:blobGeo(rad, 1, amp===undefined?0.20:amp, seed||1), m:m};
+}
 
 function geoBroad(seed){
   var r = mulberry32(seed);
-  var h = 0.042 + r()*0.016;
-  var parts = [{g:new THREE.CylinderGeometry(0.013,0.023,h+0.012,5), m:M(0,(h+0.012)/2,0), c:'#8b6244'}];
-  var main = 0.098 + r()*0.020;
-  var cy = h + main*0.80;
-  var PAL = [
-    ['#357f31','#41903a','#4fa044'],
-    ['#3f9440','#4ea74a','#5fb855'],
-    ['#4ba342','#5cb64d','#6ec65c']
-  ][Math.floor(r()*3)];
-  parts.push({g:new THREE.SphereGeometry(main, 9, 7),
-    m:M(0, cy, 0, r()*0.3, r()*3, r()*0.3), c:PAL[1]});
-  // 两侧/两侧偏后的团块，形成蓬松树冠
-  for(var i=0;i<3;i++){
-    var a = i/3*Math.PI*2 + r()*0.7;
-    var rad = 0.056 + r()*0.020;
-    parts.push({g:new THREE.SphereGeometry(rad, 8, 6),
-      m:M(Math.cos(a)*main*0.62, cy - 0.010 + r()*0.020, Math.sin(a)*main*0.62, r(), r()*3, r()),
-      c:(i%2 ? PAL[0] : PAL[2])});
+  var wood = [], crown = [];
+  /* 干冠比是树的「骨架感」所在：上一版 h≈0.075 / 冠宽 0.20，
+     就成了球压在地上。这一版把干拉到 0.10+、冠收到 0.16 宽，
+     比例从 1:2.6 变成 1:1.6，才像树而不像蘑菇。 */
+  var h = 0.100 + r()*0.022;
+  var lx = (r()-0.5)*0.008;                         // 轻微歪斜，不站成一排电线杆
+  var tl = (r()-0.5)*0.09;
+  wood.push({g:new THREE.CylinderGeometry(0.0105,0.0175,h,6), m:M(lx,h*0.5,0, 0,0,tl), c:'#8a6144'});
+  /* 根部外扩：低模树最容易漏的一笔，没有它树干看着像插在草地上的一根棍。
+     倾斜角必须和树干一致，否则树干一歪，这个底盘就从侧面戳出来一块。 */
+  wood.push({g:new THREE.CylinderGeometry(0.0175,0.0245,0.013,6), m:M(lx*0.15,0.0065,0, 0,0,tl), c:'#7a5539'});
+  /* 三根斜枝撑住树冠：这是树的「骨骼」，没有它就只剩棒棒糖 */
+  for(var b=0;b<3;b++){
+    var ba = b/3*Math.PI*2 + r()*0.7;
+    wood.push(limb(lx*0.8, h*0.80, 0, Math.cos(ba), 0.95, Math.sin(ba),
+                   0.036 + r()*0.016, 0.0072, 0.0038, '#7d573c'));
   }
-  // 顶部小团
-  parts.push({g:new THREE.SphereGeometry(0.050 + r()*0.016, 8, 6),
-    m:M((r()-0.5)*0.030, cy + main*0.66, (r()-0.5)*0.030, r(), r()*3, r()), c:PAL[2]});
-  return faceShade(mergeParts(parts), mixHex(PAL[0],PAL[1],0.45), PAL[1], PAL[2], 0.45, -0.30);
+  var R1 = 0.078 + r()*0.013;
+  var y1 = h + 0.004 + R1*0.84;                     // 冠底刚好落在树干顶上
+  var ra = r()*TAU;
+  /* 轮廓要「下宽上尖」：主冠在中部偏下最宽，靠上面的两级凸起收口。
+     体块之间保持 70% 以上的半径重叠 —— 低模树的轮廓只允许鼓包，
+     一旦出现凹槽或「两个球叠起来」的接缝，就从树变成了雪人。 */
+  crown.push(lobe(R1, 0, y1, 0, 0.84, 0.16, seed+7, 0));
+  crown.push(lobe(R1*0.80, Math.cos(ra)*R1*0.20, y1 + R1*0.50, Math.sin(ra)*R1*0.20,
+                  0.90, 0.17, seed+23, 0));
+  var a3 = ra + 2.4;
+  crown.push(lobe(R1*0.56, Math.cos(a3)*R1*0.24, y1 + R1*0.94, Math.sin(a3)*R1*0.24,
+                  0.96, 0.18, seed+41, 0));
+  return concatGeo([mergeParts(wood), faceShade(mergeParts(crown), FOL_D, FOL_M, FOL_L, 0.44, -0.30)]);
 }
+
 function geoPine(seed){
   var r = mulberry32(seed);
-  var h = 0.034 + r()*0.014;
-  var parts = [{g:new THREE.CylinderGeometry(0.010,0.015,h,5), m:M(0,h/2,0), c:'#7a5236'}];
-  var n = 3;
-  for(var i=0;i<n;i++){
-    var rad = 0.088 - i*0.022;
-    var ch  = 0.115 - i*0.020;
-    parts.push({g:new THREE.ConeGeometry(rad, ch, 7),
-      m:M(0, h + 0.036 + i*0.074, 0, 0, r()*1.2, 0),
-      c:[ '#2f7030','#3a8138','#468f40'][i%3]});
+  var wood = [], crown = [];
+  var h = 0.062 + r()*0.016;
+  wood.push({g:new THREE.CylinderGeometry(0.0092,0.0150,h+0.030,6), m:M(0,(h+0.030)*0.5,0), c:'#7a5236'});
+  wood.push({g:new THREE.CylinderGeometry(0.0150,0.0215,0.012,6), m:M(0,0.006,0), c:'#6b4529'});
+  /* 五层锥 + 尖顶：层间重叠 60%，底部那圈平底盖只留一层，其余 openEnded ——
+     否则从高机位俯看会看到一圈「叠起来的盘子」 */
+  var tiers = [
+    {rad:0.092, ch:0.100, y:0.000},
+    {rad:0.074, ch:0.092, y:0.048},
+    {rad:0.058, ch:0.084, y:0.094},
+    {rad:0.043, ch:0.076, y:0.138},
+    {rad:0.030, ch:0.068, y:0.178}
+  ];
+  for(var i=0;i<tiers.length;i++){
+    var t = tiers[i];
+    crown.push({g:new THREE.ConeGeometry(t.rad, t.ch, 7, 1, i>0),
+      m:M(0, h + t.y + t.ch*0.5, 0, 0, r()*1.3, 0),
+      c:PIN_M});
   }
+  crown.push({g:new THREE.ConeGeometry(0.017, 0.062, 7),
+    m:M(0, h + 0.228, 0, 0, r()*1.3, 0), c:PIN_L});
   /* 锥体侧面法线是水平的，与主光的点积只在 ±0.55 之间，阈值要单独定 */
-  return faceShade(mergeParts(parts), '#245a28', '#35793a', '#4b9a42', 0.20, -0.18);
+  return concatGeo([mergeParts(wood), faceShade(mergeParts(crown), PIN_D, PIN_M, PIN_L, 0.20, -0.18)]);
 }
+
 function geoCherry(seed){
   var r = mulberry32(seed);
-  var h = 0.046 + r()*0.014;
-  var parts = [{g:new THREE.CylinderGeometry(0.012,0.021,h+0.010,5), m:M(0,(h+0.010)/2,0, 0,0,0.05), c:'#8c6047'}];
-  var cols = [PINK_1, PINK_2, PINK_3];
-  var main = 0.078 + r()*0.016;
-  var cy = h + main*0.82;
-  parts.push({g:new THREE.SphereGeometry(main, 8, 6),
-    m:M(0, cy, 0, r()*0.3, r()*3, r()*0.3), c:PINK_1});
-  for(var i=0;i<3;i++){
-    var a = i/3*Math.PI*2 + r()*0.8;
-    var rad = 0.048 + r()*0.016;
-    parts.push({g:new THREE.SphereGeometry(rad, 7, 5),
-      m:M(Math.cos(a)*main*0.60, cy - 0.008 + r()*0.018, Math.sin(a)*main*0.60, r(), r()*3, r()),
-      c:cols[(i+1)%3]});
+  var wood = [], crown = [];
+  var h = 0.112 + r()*0.020;                        // 樱是「低矮宽伞」，干要显眼
+  wood.push({g:new THREE.CylinderGeometry(0.0112,0.0190,h,6), m:M(0,h*0.5,0, 0,0,(r()-0.5)*0.10), c:'#8c6047'});
+  wood.push({g:new THREE.CylinderGeometry(0.0190,0.0295,0.012,6), m:M(0,0.006,0), c:'#7c523d'});
+  /* 四根外张斜枝把伞面撑开 —— 樱花冠下那圈放射状枝干是它最好认的特征 */
+  var R1 = 0.082 + r()*0.012;
+  var rot0 = r()*TAU;
+  for(var b=0;b<4;b++){
+    var ba = rot0 + b/4*TAU;
+    wood.push(limb(0, h*0.82, 0, Math.cos(ba), 0.58, Math.sin(ba),
+                   0.058 + r()*0.012, 0.0078, 0.0036, '#875b42'));
   }
-  parts.push({g:new THREE.SphereGeometry(0.044 + r()*0.014, 7, 5),
-    m:M((r()-0.5)*0.026, cy + main*0.62, (r()-0.5)*0.026, r(), r()*3, r()), c:PINK_3});
-  return faceShade(mergeParts(parts), '#df9ab4', '#eeb0c6', '#f9cfe0', 0.45, -0.30);
+  var cy = h + 0.042;
+  /* 樱冠 = 扁盘 + 大半径圆顶。
+     上一版是「扁盘 + 小鼓包」，鼓包太小，它的斜侧面被分到中间色阶、
+     盘顶被分到亮色阶，渲染出来就是一个假坑（几何上并没有凹，是色阶骗人）。
+     现在顶冠半径给到 0.82R、底部深埋进盘里，高度从中心到边缘单调下降，
+     既是伞形又不会出现台阶。 */
+  crown.push(lobe(R1, 0, cy, 0, 0.55, 0.14, seed+5, 0));
+  for(var i=0;i<2;i++){
+    var a2 = rot0 + 0.5 + i*3.1;
+    crown.push(lobe(R1*0.60, Math.cos(a2)*R1*0.62, cy + R1*0.02, Math.sin(a2)*R1*0.62,
+                    0.50, 0.15, seed+31+i*9, 0));
+  }
+  crown.push(lobe(R1*0.82, 0, cy + R1*0.34, 0, 0.62, 0.15, seed+77, 0));
+  return concatGeo([mergeParts(wood), faceShade(mergeParts(crown), CHR_D, CHR_M, CHR_L, 0.44, -0.30)]);
 }
+
+/* 棕榈叶：一条连续拱起的扁带，不是两截对拼的棍子。
+   之前的写法「上扬段 + 下垂段」两段各自定角，接缝处一个硬折角，
+   宽度又在整段里线性收到零 → 渲染出来是一把匕首/爪尖。
+   现在拆成 N 段走一条仰角从 +e0 渐变到 -e1 的弧，
+   宽度前 60% 基本不变、后 40% 才收尖，才是椰叶的形状。 */
+var _bU = new THREE.Vector3(), _bS = new THREE.Vector3(), _bN = new THREE.Vector3();
+function blade(x0,y0,z0, dx,dy,dz, len, halfW0, halfW1, col, flat){
+  _bU.set(dx,dy,dz);
+  if(_bU.lengthSq() < 1e-9) _bU.set(0,1,0);
+  _bU.normalize();
+  _bS.set(-_bU.z, 0, _bU.x);
+  if(_bS.lengthSq() < 1e-6) _bS.set(1,0,0);
+  _bS.normalize();
+  _bN.crossVectors(_bS, _bU).normalize();
+  var m = new THREE.Matrix4().makeBasis(_bS, _bU, _bN);
+  m.multiply(new THREE.Matrix4().makeScale(1, 1, flat===undefined?0.30:flat));
+  m.setPosition(x0+_bU.x*len*0.5, y0+_bU.y*len*0.5, z0+_bU.z*len*0.5);
+  /* openEnded：段与段之间的端盖必须去掉。留着的话，后一段比前一段细，
+     前一段的端盖就露出一圈环——渲染出来是叶片上横着一道黑线。 */
+  return {g:new THREE.CylinderGeometry(halfW1, halfW0, len, 4, 1, true), m:m, c:col};
+}
+function frondChain(out, x0,y0,z0, ax,az, len, segs, e0, e1, w0, colMid, colTip){
+  var px = x0, py = y0, pz = z0;
+  function wAt(f){
+    if(f < 0.62) return w0*(1 - 0.12*(f/0.62));
+    return w0*0.88*Math.max(0, 1 - (f-0.62)/0.38);
+  }
+  for(var s=0;s<segs;s++){
+    var f0 = s/segs, f1 = (s+1)/segs;
+    /* 仰角用 f^1.8 而不是线性：叶片要「先挺住、后急坠」才像椰叶；
+       线性插值出来是一条斜直线，远看是把扇子不是叶 */
+    var e  = e0 + (e1-e0)*Math.pow(f0, 1.8);
+    var nm = Math.sqrt(1 + e*e);
+    var ux = ax/nm, uy = e/nm, uz = az/nm;
+    var sl = len/segs;
+    /* 每段画长 18%：相邻段的截面朝向不同，接缝处会露出楔形缝，
+       让它们互相插进去，缝就没了 */
+    out.push(blade(px, py, pz, ux, uy, uz, sl*1.18, wAt(f0), wAt(f1), (f0 < 0.5 ? colMid : colTip), 0.28));
+    px += ux*sl; py += uy*sl; pz += uz*sl;
+  }
+}
+
 function geoPalm(seed){
   var r = mulberry32(seed);
-  var parts = [];
-  var h1 = 0.096 + r()*0.026;
-  parts.push({g:new THREE.CylinderGeometry(0.011,0.019,h1,5), m:M(0,h1/2,0, 0,0,0.10), c:'#a07548'});
-  var lx = 0.028, ly = h1 + 0.034;
-  parts.push({g:new THREE.CylinderGeometry(0.0065,0.008,0.058,5), m:M(lx*0.5, h1+0.012, 0, 0,0,0.20), c:'#8e6339'});
-  // 外层长叶：更短更窄 + 明显下垂，俯视时才不会糊成“星芒”
-  for(var i=0;i<7;i++){
-    var a = i/7*Math.PI*2 + 0.3;
-    parts.push({g:new THREE.BoxGeometry(0.092,0.006,0.026),
-      m:M(lx+Math.cos(a)*0.040, ly-Math.abs(Math.sin(i*1.7))*0.008, Math.sin(a)*0.040, 0, -a, -0.70),
-      c:(i%2? '#2f7a34':'#3c8a3d')});
+  var wood = [], crown = [];
+  var h1 = 0.168 + r()*0.034;              // 椰树要「高瘦」：冠幅不能超过干高
+  var lean = 0.20 + r()*0.14;              // 梢部越往上越歪
+  /* 三段树干，每段起点严格接上一段终点 —— 上一版两段各摆各的，
+     中间直接断成两截，远看像一截树桩旁边飘着一丛叶。 */
+  var segs = [
+    {dir:0.06, len:h1*0.50, r0:0.0180, r1:0.0132},
+    {dir:lean*0.45, len:h1*0.30, r0:0.0132, r1:0.0108},
+    {dir:lean, len:h1*0.22, r0:0.0108, r1:0.0094}
+  ];
+  var px = 0, py = 0;
+  for(var k=0;k<segs.length;k++){
+    var sg = segs[k];
+    var nm = Math.sqrt(sg.dir*sg.dir + 1);
+    var ux = sg.dir/nm, uy = 1/nm;
+    wood.push(limb(px, py, 0, ux, uy, 0, sg.len, sg.r0, sg.r1, k===0?'#a07548':'#966b41', 6));
+    px += ux*sg.len; py += uy*sg.len;
   }
-  // 内层短叶，补出树冠体积
-  for(var j=0;j<5;j++){
-    var b = j/5*Math.PI*2 + 1.0;
-    parts.push({g:new THREE.BoxGeometry(0.058,0.006,0.022),
-      m:M(lx+Math.cos(b)*0.022, ly+0.012, Math.sin(b)*0.022, 0, -b, -0.34),
-      c:(j%2? '#3a8a3c':'#489a45')});
+  /* 冠心球：没有它，六片叶是「从一点炸开」的星芒；有了它，
+     叶丛是从一个果核里长出来的 */
+  crown.push({g:icoG(0.0155, 1), m:M(px, py, 0), c:PLM_M});
+  /* 叶片：一条连续拱起的扁带（4 段） */
+  var NF = 7;
+  for(var i=0;i<NF;i++){
+    var a = i/NF*TAU + r()*0.34;
+    frondChain(crown, px, py, 0, Math.cos(a), Math.sin(a),
+               0.132 + r()*0.022, 4, 0.72 + r()*0.16, -1.35 - r()*0.20,
+               0.0128, (i%2? PLM_M : PLM_L), PLM_L);
   }
-  parts.push({g:new THREE.SphereGeometry(0.014,5,4), m:M(lx,ly-0.012,0.010), c:'#6b4a2c'});
-  parts.push({g:new THREE.SphereGeometry(0.014,5,4), m:M(lx+0.013,ly-0.014,-0.012), c:'#6b4a2c'});
-  return mergeParts(parts);
+  /* 内层短叶：从冠心往上翘，补出叶丛的厚度 */
+  for(var j=0;j<3;j++){
+    var b2 = j/3*TAU + 1.0;
+    frondChain(crown, px, py + 0.010, 0, Math.cos(b2), Math.sin(b2),
+               0.054, 2, 1.20, 0.45, 0.0105, PLM_M, PLM_L);
+  }
+  // 椰果
+  crown.push({g:icoG(0.0135, 0), m:M(px, py - 0.012, 0.012), c:'#6b4a2c'});
+  crown.push({g:icoG(0.0125, 0), m:M(px + 0.014, py - 0.014, -0.011), c:'#5e4024'});
+  return concatGeo([mergeParts(wood), faceShade(mergeParts(crown), PLM_D, PLM_M, PLM_L, 0.22, -0.16)]);
 }
+
 function geoBush(seed){
   var r = mulberry32(seed);
   var parts = [];
-  for(var i=0;i<3;i++){
-    var s = 0.036 + r()*0.020;
-    parts.push({g:new THREE.SphereGeometry(s, 6, 4),
-      m:M((r()-0.5)*0.068, s*0.85 + r()*0.010, (r()-0.5)*0.068, r(), r(), r()),
-      c:(i%2? '#418c36':'#55a340')});
+  var n = 3 + Math.floor(r()*2);
+  for(var i=0;i<n;i++){
+    var s = 0.034 + r()*0.020;
+    var a = i/n*TAU + r()*0.7;
+    var d = (i===0) ? 0 : 0.030 + r()*0.012;        // 偏移压小，灌木要连成一体
+    parts.push(lobe(s, Math.cos(a)*d, s*0.80 + r()*0.012, Math.sin(a)*d, 0.82, 0.24, seed+i*13, r()*3));
   }
-  return mergeParts(parts);
+  return faceShade(mergeParts(parts), BSH_D, BSH_M, BSH_L, 0.44, -0.28);
 }
 function geoFlowerClump(seed){
   var r = mulberry32(seed);
@@ -1066,7 +1242,9 @@ function scatterIsle(shape, cfg, grp, rnd){
     for(var j=0;j<GEO[k2].length;j++) buckets[k2].push([]);
   }
   var shadows = [], placed = [];
-  var TREE_SC = 0.86;
+  /* 树在整体尺度上要「大而密」：总览是第一眼，冠幅不够就显秃。
+     尺寸和间距分开缩放（间距只跟 0.90 档），否则树一变大就被挤稀。 */
+  var TREE_SC = 1.02;
 
   function freeAt(x, z, rad){
     for(var i=0;i<placed.length;i++){
@@ -1221,8 +1399,16 @@ function scatterIsle(shape, cfg, grp, rnd){
       // 林心外的树稀一点：林子边缘自然过渡，不是硬切的圆
       var s = pl.s[0] + rnd()*(pl.s[1]-pl.s[0]);
       var gp2 = pl.gap;
-      if(isTree[pl.k]){ s *= TREE_SC; gp2 *= TREE_SC; }
-      if(put(pl.k, pos.x, pos.z, s, {gap:gp2, sr:pl.sr, hh:pl.hh})) made++;
+      var popt = {gap:gp2, sr:pl.sr, hh:pl.hh};
+      if(isTree[pl.k]){
+        s *= TREE_SC; gp2 *= TREE_SC*0.90; popt.gap = gp2;
+        /* 树的顶点色是烘死的（亮面固定朝主光侧），实例再随机旋转，
+           就会出现「亮面朝左的树」和「亮面朝右的树」混在一起 ——
+           整片林子发脏的真正原因。树是没有正反的体块，直接不转；
+           几何本身的顶点扰动已经保证了每棵都不一样。 */
+        popt.rot = 0;
+      }
+      if(put(pl.k, pos.x, pos.z, s, popt)) made++;
     }
   }
 
