@@ -467,8 +467,10 @@ function icoG(rad, det){ return new THREE.IcosahedronGeometry(rad, det===undefin
    远看像云朵或大脑。正确做法是「一个连续体块 + 表面起伏」：
    按顶点坐标做稳定伪随机，同一位置的重复顶点拿到同一个扰动值，
    面不会裂开；再交给 flatShading，出来的是自然的块面起伏。 */
-function blobGeo(rad, det, amp, seed){
-  var g = new THREE.IcosahedronGeometry(rad, det===undefined?1:det);
+/* 通用「顶点扰动」：任意非索引几何，按【位置哈希】做径向/分量扰动。
+   同一位置的重复顶点拿到同一个扰动值，面不会裂开 —— 这是低模造型里
+   「一块石头/一坨树冠看起来是天然长的」的唯一来源，多块拼永远拼不像。 */
+function jitterGeo(g, amp, seed){
   var a = g.attributes.position.array;
   var map = {};
   for(var i=0;i<a.length;i+=3){
@@ -485,6 +487,9 @@ function blobGeo(rad, det, amp, seed){
   g.attributes.position.needsUpdate = true;
   g.computeVertexNormals();
   return g;
+}
+function blobGeo(rad, det, amp, seed){
+  return jitterGeo(new THREE.IcosahedronGeometry(rad, det===undefined?1:det), amp, seed);
 }
 
 /* 把圆柱沿任意方向摆好：算欧拉角太绕，直接用四元数把 +Y 对齐到目标方向 */
@@ -733,15 +738,38 @@ function geoStoneTile(seed){
   ];
   return mergeParts(parts);
 }
+/* 岩块：低模石头要「有棱角 + 不规则」。
+   原来两颗正十二面体随机转一下就撒下去，出来是一片鹅卵石 / 圆疙瘩。
+   现在：多面体顶点按位置哈希扰动 → 棱角出来；y 压扁 → 石头是「躺着」的；
+   再把最低点归零 → 底座正好坐在地上，不用靠手调 y 去猜埋多深。
+   另外孤石最假，一律「一主两碎」成组。 */
+function rockChunk(rad, seed, sq){
+  var g = jitterGeo(new THREE.DodecahedronGeometry(rad, 0), 0.36, seed);
+  var a = g.attributes.position.array;
+  for(var i=1;i<a.length;i+=3) a[i] *= sq;          // 压扁
+  var minY = 1e9;
+  for(var j=1;j<a.length;j+=3) if(a[j] < minY) minY = a[j];
+  for(var k=1;k<a.length;k+=3) a[k] -= minY;        // 底座落到 y=0
+  g.attributes.position.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
 function geoRock(seed){
   var r = mulberry32(seed);
   var parts = [];
+  var main = 0.024 + r()*0.013;
+  /* 整体下沉 0.008：石头的底面是平的，地面有坡 —— 不下沉的话
+     上坡侧埋进去、下坡侧翘起来，整块石头看着是"浮"在草上的 */
+  parts.push({g:rockChunk(main, seed, 0.62 + r()*0.16),
+              m:M(0,-0.008,0, 0, r()*TAU, 0), c:'#b4b1a3'});
   for(var i=0;i<2;i++){
-    parts.push({g:new THREE.DodecahedronGeometry(0.020+r()*0.012,0),
-      m:M((r()-0.5)*0.026, 0.011+r()*0.006, (r()-0.5)*0.026, r(),r(),r()),
-      c:(i%2? '#a8a89c':'#bcbcb0')});
+    var a = r()*TAU, d = main*(0.80 + r()*0.45);
+    var rad = main*(0.34 + r()*0.26);
+    parts.push({g:rockChunk(rad, seed + i*137, 0.58 + r()*0.20),
+                m:M(Math.cos(a)*d, -0.005, Math.sin(a)*d, 0, r()*TAU, 0), c:'#a9a698'});
   }
-  return faceShade(mergeParts(parts), '#8e8e82', '#adada0', '#ccccbf');
+  /* 石头三档：冷灰偏一点绿，和沙子的暖米色拉开距离，不然石堆会糊进沙滩 */
+  return faceShade(mergeParts(parts), '#767569', '#98968a', '#c0beb0', 0.46, -0.28);
 }
 function geoLamp(){
   return mergeParts([
@@ -1065,10 +1093,14 @@ var TOP_N = 12;   // PROF[0..12] 是「岛心 → 外缘」，之后是侧壁
   for(var q=1;q<PROF.length;q++) if(PROF[q].rf > PROF[TOP_N].rf) TOP_N = q;
 })();
 var LAND_STOPS = [
-  [-1.000,'#9c8f7a'],[-0.860,'#a8977f'],[-0.740,'#b3a184'],[-0.640,'#bfac8b'],
-  [-0.550,'#cbb692'],[-0.470,'#d5c09a'],[-0.400,'#ddc8a1'],[-0.340,'#e4d1a8'],
-  [-0.285,'#e8d29a'],[-0.235,'#eed9a2'],[-0.190,'#f2e0ab'],[-0.150,'#f5e6b8'],
-  [-0.115,'#f7e8bd'],[-0.092,'#ebe0a4'],[-0.076,'#c8cf84'],[-0.062,'#a2bd5c'],[-0.044,'#8ecb55'],
+  /* 水下：冷灰岩。原来整条剖面都是米色渐变，岛的侧壁读作「巧克力蛋糕」 */
+  [-1.000,'#4e4b44'],[-0.860,'#575349'],[-0.740,'#615c50'],[-0.640,'#6b6558'],
+  [-0.550,'#756e5f'],[-0.470,'#7f7767'],[-0.400,'#8a8170'],[-0.340,'#9a8e79'],
+  /* 水线以上仍要留沙滩（不然岛就没有"岸"了），但水线那一档明显加深 ——
+     沙滩和水的交界需要一条「湿沙」暗边，否则岛是「淡出」在水里的 */
+  [-0.300,'#bda887'],[-0.265,'#d9c6a0'],[-0.230,'#e9d6ae'],[-0.195,'#f2e0b6'],
+  [-0.158,'#f6e6bb'],[-0.115,'#f7e8bd'],
+  [-0.092,'#ebe0a4'],[-0.076,'#c8cf84'],[-0.062,'#a2bd5c'],[-0.044,'#8ecb55'],
   [-0.024,'#82bf50'],[-0.008,'#89c755'],[ 0.000,'#91cd5c'],[ 0.006,'#9bd468']
 ];
 var WATER_Y = -0.300;
@@ -1090,11 +1122,36 @@ function hillAt(rf, cfg){
   if(k >= 1) return 0;
   return cfg.hill * Math.pow(Math.cos(k*Math.PI*0.5), 1.6);
 }
+/* 地表高度：剖面 + 岛心山头 + 局部土丘 + 草地微起伏。
+   hillAt 是径向对称的 —— 七座岛中心长出来都是同一个「圆馒头」，
+   所以另加 blob（岛内任意位置的小土丘），岛才有地形而不是一块平台。 */
+function landY(u, v, rf, cfg){
+  var y = profTopY(rf) + hillAt(rf, cfg);
+  if(cfg.blob && rf < 0.90){
+    /* 土丘靠近海岸必须收掉，否则会顶到沙滩、把海岸线拱变形 */
+    var fade = rf > 0.78 ? Math.max(0, (0.90-rf)/0.12) : 1;
+    fade = fade*fade*(3-2*fade);
+    for(var i=0;i<cfg.blob.length;i++){
+      var b = cfg.blob[i];
+      var dx = u-b.u, dz = v-b.v;
+      var d2 = (dx*dx+dz*dz)/(b.r*b.r);
+      if(d2 < 1){ var k = 1-d2; y += b.h*k*k*fade; }
+    }
+  }
+  /* 草地微起伏：波长 0.38~0.41，环距 0.03 —— 每波长 13 个采样。
+     第一版用 k≈25（波长 0.245，只有 8 个采样），flatShading 下每条波峰
+     只剩两三个三角形宽，渲染出来是地面上的斜向"灯芯绒"，不是地形。 */
+  if(rf < 0.86){
+    var relief = Math.sin(u*13.0 + v*8.0)*0.0085 + Math.sin(u*6.5 - v*15.0)*0.0060;
+    y += relief * (rf > 0.60 ? (0.86-rf)/0.26 : 1);
+  }
+  return y;
+}
 function topY(shape, cfg, x, z){
   var u = x/shape.sx, v = z/shape.sz;
   var rf = Math.sqrt(u*u+v*v)/Rat(shape, Math.atan2(v,u));
   if(rf > 0.900) return null;              // 只往草地上摆，沙滩留给礁石
-  return profTopY(rf) + hillAt(rf, cfg);
+  return landY(u, v, rf, cfg);
 }
 
 /* ============ 地形网格 ============ */
@@ -1118,8 +1175,12 @@ function buildLand(shape, cfg){
       var y = pr.y;
       /* 高度抖动要极小：地形是 flatShading，逐顶点随机高度会让每个三角面的
          法线各偏几度，光照差 3~5%，而极坐标网格的三角形又细又长，
-         投影到屏幕上就是那片从岛心放射出去的扇形条纹。 */
-      if(pr.rf < 0.90) y += hillAt(pr.rf, cfg) + (nz()-0.5)*0.0005*(1-pr.rf/0.90);
+         投影到屏幕上就是那片从岛心放射出去的扇形条纹。
+         起伏现在全部交给 landY 里的低频正弦（波长 9 倍于环距），
+         这里只留一点几乎看不见的碎屑，破掉「完全光滑」的感觉。 */
+      if(pr.rf < 0.90)
+        y = landY(Math.cos(a)*r, Math.sin(a)*r, pr.rf, cfg)
+          + (nz()-0.5)*0.0004*(1-pr.rf/0.90);
       var px = Math.cos(a)*r*shape.sx, pz = Math.sin(a)*r*shape.sz;
       pos.push(px, y, pz);
       /* 草地不按高度取色：LAND_STOPS 在 y≈0 那一段色阶极陡（0.006 内就跨两档），
@@ -1681,42 +1742,52 @@ var NAME_BY_KIND = {
 var ISLES_CFG = [
   { id:'gate', x: 0.00, z: 0.00, seed: 7711, sx:1.34, sz:0.96,
     hill:0.000, grass:1.00,
+    /* blob = 岛内任意位置的小土丘 {u,v,r,h}（岛归一化坐标，|u,v|≈rf）。
+       入口岛要留平地给石门，只在背后抬一道缓坡收边 */
+    blob:[{u:0.44, v:-0.34, r:0.36, h:0.050}],
     veg:{pine:4, broad:14, cherry:7, palm:2, bush:12, flower:34, grass:44, rock:5},
     pathAngle:1.15, groves:3,
     landmark:{kind:'gate', u:0.0, v:-0.06, rot:0.12, sc:1.52} },
 
   { id:'houseBlue', x: 2.60, z:-3.60, seed: 2201, sx:1.24, sz:0.88,
     hill:0.010, grass:1.03,
+    blob:[{u:-0.40, v:0.30, r:0.30, h:0.055}],
     veg:{pine:2, broad:7, cherry:2, palm:7, bush:11, flower:26, grass:36, rock:8},
     pathAngle:-0.55, groves:2,
     landmark:{kind:'houseBlue', u:-0.10, v:0.10, rot:-0.35, sc:1.52} },
 
+  /* 荒芜岛：山头最高 + 两坨土丘 + 石多 —— 和其他岛不是一个气候 */
   { id:'windmill', x:-1.20, z:-4.20, seed: 5503, sx:1.28, sz:0.90,
-    hill:0.105, grass:0.97, grassTint:[1.06, 1.00, 0.87],
+    hill:0.150, grass:0.97, grassTint:[1.06, 1.00, 0.87],
+    blob:[{u:0.34, v:0.36, r:0.36, h:0.075},{u:-0.44, v:-0.22, r:0.24, h:0.055}],
     veg:{pine:7, broad:4, cherry:1, palm:0, bush:6, flower:7, grass:16, rock:22},
     pathAngle:2.35, groves:2,
     landmark:{kind:'windmill', u:0.02, v:0.02, rot:0.25, sc:1.52} },
 
   { id:'lookout', x:-4.30, z:-1.60, seed: 4404, sx:1.38, sz:0.76,
-    hill:0.075, grass:0.96, grassTint:[0.98, 0.99, 1.02],
+    hill:0.115, grass:0.96, grassTint:[0.98, 0.99, 1.02],
+    blob:[{u:0.12, v:-0.38, r:0.30, h:0.045}],
     veg:{pine:11, broad:3, cherry:0, palm:1, bush:9, flower:12, grass:26, rock:12},
     pathAngle:0.32, groves:3,
     landmark:{kind:'lookout', u:-0.16, v:0.0, rot:0.5, sc:1.52} },
 
   { id:'houseWood', x:-3.20, z: 2.00, seed: 3305, sx:1.16, sz:1.00,
-    hill:0.020, grass:0.94, grassTint:[0.95, 0.99, 0.97],
+    hill:0.055, grass:0.94, grassTint:[0.95, 0.99, 0.97],
+    blob:[{u:0.40, v:0.24, r:0.26, h:0.060},{u:-0.38, v:-0.30, r:0.22, h:0.040}],
     veg:{pine:14, broad:5, cherry:0, palm:0, bush:14, flower:14, grass:30, rock:7},
     pathAngle:-1.95, groves:4,
     landmark:{kind:'houseWood', u:0.06, v:0.04, rot:0.9, sc:1.52} },
 
   { id:'pavilion', x: 0.60, z: 4.00, seed: 6606, sx:1.22, sz:0.98,
-    hill:0.000, grass:1.04, grassTint:[1.02, 1.00, 1.00],
+    hill:0.040, grass:1.04, grassTint:[1.02, 1.00, 1.00],
+    blob:[{u:-0.36, v:-0.34, r:0.28, h:0.045}],
     veg:{pine:1, broad:6, cherry:13, palm:3, bush:9, flower:52, grass:40, rock:3},
     pathAngle:1.85, groves:3,
     landmark:{kind:'pavilion', u:-0.04, v:-0.06, rot:-0.2, sc:1.52} },
 
   { id:'torii', x: 4.20, z:-0.60, seed: 9907, sx:1.04, sz:0.84,
-    hill:0.000, grass:1.01,
+    hill:0.030, grass:1.01,
+    blob:[{u:0.28, v:0.32, r:0.24, h:0.042}],
     veg:{pine:2, broad:3, cherry:0, palm:4, bush:5, flower:10, grass:22, rock:6},
     pathAngle:0.90, groves:2,
     landmark:{kind:'torii', u:0.0, v:0.02, rot:0.0, sc:1.52} }
@@ -2219,7 +2290,7 @@ function groundYAt(is, wx, wz){
   var x=wx-is.x, z=wz-is.z;
   var u=x/is.shape.sx, v=z/is.shape.sz;
   var rf=Math.min(0.999, Math.sqrt(u*u+v*v)/Rat(is.shape, Math.atan2(v,u)));
-  return profTopY(rf) + hillAt(rf, is.cfg) + 0.010;
+  return landY(u, v, rf, is.cfg) + 0.010;
 }
 /* 步行轨：码头外端（船边）→ 甲板 → 沙滩 → 岛内 → 地标前。
    有支线的岛用码头方向；主岛 gate 没有码头，用石板路 pathAngle 顶上。 */
@@ -2914,10 +2985,12 @@ var fireflies = (function(){
     var is = isles[k];
     for(var i=0;i<per;i++){
       var idn = k*per+i;
-      var a = r()*TAU, rad = 0.18 + Math.sqrt(r())*0.80;
-      base[idn*3]   = is.x + Math.cos(a)*rad*is.shape.sx*0.94;
-      base[idn*3+1] = 0.035 + r()*0.16 + hillAt(0.2, is.cfg);
-      base[idn*3+2] = is.z + Math.sin(a)*rad*is.shape.sz*0.94;
+      var a = r()*TAU, rad = (0.18 + Math.sqrt(r())*0.80)*0.94;
+      var fu = Math.cos(a)*rad, fv = Math.sin(a)*rad;
+      base[idn*3]   = is.x + fu*is.shape.sx;
+      /* 萤火虫要跟着地形抬起来：只用 hillAt 的话，加了土丘之后会钻进土里 */
+      base[idn*3+1] = landY(fu, fv, rad, is.cfg) + 0.035 + r()*0.16;
+      base[idn*3+2] = is.z + fv*is.shape.sz;
       pos[idn*3]=base[idn*3]; pos[idn*3+1]=base[idn*3+1]; pos[idn*3+2]=base[idn*3+2];
       ph[idn] = r()*TAU;
     }
