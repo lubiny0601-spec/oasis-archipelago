@@ -1235,6 +1235,7 @@ var LANDMARK_GEO = {
 };
 
 /* 每座岛的气质由这张配比表决定：松多的森严、樱多的绚烂、石多的荒芜 */
+var TREE_MESHES = [];                    // 只给 ?noveg=1 用
 function scatterIsle(shape, cfg, grp, rnd){
   var buckets = {};
   for(var k2 in GEO){
@@ -1437,6 +1438,8 @@ function scatterIsle(shape, cfg, grp, rnd){
         grp.add(im);
         meshes.push(im);
         if(SMALL[bk]) detail.push(im);
+        /* 树单独记一份：?noveg=1 时整片收掉，方便给小人 / 地标出特写 */
+        if(isTree[bk]) TREE_MESHES.push(im);
       }
     }
   }
@@ -2144,22 +2147,35 @@ var LAND_HOLD = (function(){
   return m ? Math.max(0, Math.min(LAND_DUR, parseFloat(m[1]))) : null;
 })();
 var landSeq = null, landHarbor = null;
-var walker = null, legL = null, legR = null;
+var walker = null, legL = null, legR = null, armL = null, armR = null;
 
-/* 低模小人：大衣/围巾/双臂/头/发/背包合成 1 个 mesh，两条腿单独挂 pivot 做摆动。
+/* 低模小人：大衣/围巾/头/脸/背包/斜挎带合成 1 个 mesh，两条腿和两条胳膊各自挂 pivot 摆动。
    用 PAINT（共享材质）→ 夜色自动跟随；不进 allLand/allLm，不参与拾取。
-   尺度基准：1.0 时身高约 0.09 世界单位，仅到低矮树丛的高度 —— 别放大成巨人。 */
+   尺度基准：1.0 时身高约 0.09 世界单位，仅到低矮树丛的高度 —— 别放大成巨人。
+   正面 = 本地 +Z（walk 里用 rotation.y = atan2(dx,dz)），所以眼睛/鼻子/嘴一律放 +Z 侧。 */
 (function buildWalker(){
   walker = new THREE.Group();
+  var SKIN = '#f2cfa8', HAIR = '#3b3129', INK = '#2b2622';
   var body = new THREE.Mesh(mergeParts([
     {g:new THREE.CylinderGeometry(0.0095,0.0130,0.036,7),  m:M(0,0.050,0),        c:'#37628a'},   /* 大衣躯干 */
     {g:new THREE.CylinderGeometry(0.0130,0.0142,0.008,7),  m:M(0,0.0315,0),       c:'#2c5174'},   /* 大衣下摆 */
     {g:new THREE.CylinderGeometry(0.0102,0.0102,0.006,7),  m:M(0,0.0685,0),       c:'#c8703c'},   /* 围巾 */
-    {g:new THREE.CylinderGeometry(0.0034,0.0030,0.019,5),  m:M(-0.0128,0.048,0, 0,0,0.14), c:'#37628a'}, /* 左臂 */
-    {g:new THREE.CylinderGeometry(0.0034,0.0030,0.019,5),  m:M( 0.0128,0.048,0, 0,0,-0.14), c:'#37628a'}, /* 右臂 */
-    {g:new THREE.SphereGeometry(0.0105,8,6),               m:M(0,0.0815,0),       c:'#f2cfa8'},   /* 头 */
-    {g:new THREE.SphereGeometry(0.0108,8,5,0,Math.PI*2,0,Math.PI*0.52),
-                                                           m:M(0,0.0840,0),       c:'#3b3129'},   /* 头发 */
+    {g:new THREE.BoxGeometry(0.0058,0.0130,0.0030),
+       m:M(-0.0078,0.0618,-0.0090, 0.20,0,0.10), c:'#b3612f'},                                /* 围巾垂尾 */
+    {g:new THREE.SphereGeometry(0.0105,8,6),               m:M(0,0.0815,0),       c:SKIN},        /* 头 */
+    /* 头发要抬到眼睛上方：原来 thetaLength=0.52π，下沿落在 y=0.0833，
+       正好把眼睛的位置盖住 —— 脸是最后加的，一加才发现被头发挡上了 */
+    {g:new THREE.SphereGeometry(0.0108,8,5,0,TAU,0,Math.PI*0.47),
+                                                           m:M(0,0.0862,0),       c:HAIR},        /* 头发 */
+    {g:new THREE.BoxGeometry(0.0136,0.0038,0.0034),
+       m:M(0,0.0888,0.0068, -0.34,0,0), c:HAIR},                                             /* 刘海 */
+    /* 五官：都用 ico 低模球，块面和全身一致；半径按「近景 40~50px 头宽」反推，
+       小于 0.0015 在漫游机位下就只剩一个像素，等于没加 */
+    {g:icoG(0.0019,0), m:M(-0.0036,0.0822,0.0090), c:INK},                                   /* 左眼 */
+    {g:icoG(0.0019,0), m:M( 0.0036,0.0822,0.0090), c:INK},                                   /* 右眼 */
+    {g:icoG(0.0016,0), m:M(0,0.0794,0.0100), c:'#e2ba96'},                                   /* 鼻子 */
+    {g:new THREE.BoxGeometry(0.0042,0.0012,0.0014),
+       m:M(0,0.0768,0.0092), c:'#c07f6b'},                                                   /* 嘴 */
     {g:new THREE.BoxGeometry(0.0105,0.0135,0.0058),        m:M(0,0.051,-0.0122),  c:'#b06538'},   /* 背包 */
     {g:new THREE.BoxGeometry(0.0035,0.020,0.0022),         m:M(0,0.052,0.0100, 0,0,-0.42), c:'#54483c'}  /* 斜挎带 */
   ]), PAINT);
@@ -2171,9 +2187,28 @@ var walker = null, legL = null, legR = null;
   ]);
   legL = new THREE.Mesh(legGeo, PAINT);
   legR = new THREE.Mesh(legGeo.clone(), PAINT);
-  legL.position.set(0,0.0298, 0.0062);
-  legR.position.set(0,0.0298,-0.0062);
+  /* 两条腿必须左右分开（±x）。原来写成 ±z，从正面看就是一前一后叠在一起，
+     整个人只剩一根柱子 —— 腿都摆动了，正面还不知道有两条腿 */
+  legL.position.set(-0.0036,0.0298,0);
+  legR.position.set( 0.0036,0.0298,0);
   walker.add(legL, legR);
+  /* 胳膊：必须单独挂 pivot 才能摆。袖口 + 手分色 —— 原来是一根秃棍，
+     近景整个人就「没有末端」，看着像截木头桩子。
+     rotation.z 的符号决定手是往里收还是往外张：Rz(θ) 把 -Y 转到 (sinθ,-cosθ)，
+     所以左臂要负角、右臂要正角，手才会甩到衣身外面来。 */
+  var armGeo = mergeParts([
+    /* 肩头补一颗球：圆柱的顶盖是平的，直接接到衣身上会在肩膀处
+       切出一道硬边，远看像挂了两个「翅膀」或口袋 */
+    {g:icoG(0.0037,0),                                     m:M(0,0.0004,0), c:'#37628a'},
+    {g:new THREE.CylinderGeometry(0.0036,0.0032,0.0155,5), m:M(0,-0.0078,0), c:'#37628a'},   /* 袖子 */
+    {g:new THREE.CylinderGeometry(0.0033,0.0033,0.0022,5), m:M(0,-0.0166,0), c:'#2c5174'},   /* 袖口 */
+    {g:icoG(0.0031,0),                                     m:M(0,-0.0198,0), c:SKIN}         /* 手 */
+  ]);
+  armL = new THREE.Mesh(armGeo, PAINT);
+  armR = new THREE.Mesh(armGeo.clone(), PAINT);
+  armL.position.set(-0.0118,0.0608,0); armL.rotation.z = -0.10;
+  armR.position.set( 0.0118,0.0608,0); armR.rotation.z =  0.10;
+  walker.add(armL, armR);
   walker.visible = false;
   scene.add(walker);
 })();
@@ -2245,6 +2280,8 @@ function landWalk(p,S){
   var moving=(k>0 && k<1), sw=Math.sin(u*46);
   legL.rotation.x = moving ? sw*0.42 : 0;
   legR.rotation.x = moving ? -sw*0.42 : 0;
+  armL.rotation.x = moving ? -sw*0.55 : 0;
+  armR.rotation.x = moving ?  sw*0.55 : 0;
   if(moving) walker.position.y += Math.abs(sw)*0.0022;
   walker.scale.setScalar(1.2*Math.max(0, Math.min(1,(p-0.06)/0.08)));
 }
@@ -2455,6 +2492,8 @@ function stepWalk(dt){
     +(moving?Math.abs(Math.sin(walkPhase))*0.0022:0);
   var sw=Math.sin(walkPhase)*0.42;
   legL.rotation.x=sw; legR.rotation.x=-sw;
+  /* 胳膊与同侧腿反相 —— 手脚同向就是僵尸走 */
+  armL.rotation.x=-sw*1.30; armR.rotation.x=sw*1.30;
   /* 跟随镜头：焦点指数平滑；phi/zoom 向目标收拢；theta 完全交给用户 */
   var kzc=Math.min(1,dt*2.2), kfc=Math.min(1,dt*4.2);
   wZoom+=(wZoomT-wZoom)*kzc;
@@ -2719,6 +2758,7 @@ function stepVoyage(dt){
     var gait=Math.min(1, Math.abs(V.u0-u)*26);
     var sw=Math.sin(now*0.014)*0.42*gait;
     legL.rotation.x=sw; legR.rotation.x=-sw;
+    armL.rotation.x=-sw*1.30; armR.rotation.x=sw*1.30;
     /* 镜头滑向码头，看小人上船 */
     var kc=Math.min(1, dt*2.2);
     focusX+=(V.camFx-focusX)*kc; focusZ+=(V.camFz-focusZ)*kc;
@@ -2729,6 +2769,7 @@ function stepVoyage(dt){
       V.phase='sail'; V.t0=now;
       V.fx=boat.position.x; V.fz=boat.position.z; V.yaw=boat.rotation.y;
       legL.rotation.x=0; legR.rotation.x=0;
+      armL.rotation.x=0; armR.rotation.x=0;
     }
   } else {
     var sp=(V.hold!=null) ? V.hold : Math.min(1,(now-V.t0)/V.sailDur);
@@ -3728,6 +3769,33 @@ if(HERO){
     }
   }
 })();
+
+/* 出图调试：?wpose=<x>,<z>[,<rot>] —— 把小人钉到指定世界坐标与朝向。
+   上岸曲线的终点经常落在树丛里（树高 0.28，小人 0.108，整个人被树冠罩住），
+   想拍脸根本拍不到。这个参数直接绕过曲线，配合 ?hero=1&fx=&fz=&th= 出特写。
+   th 取 rot 值即为正面机位（模型正面 = 本地 +Z）。 */
+(function(){
+  var m = location.search.match(/[?&]wpose=(-?[0-9.]+),(-?[0-9.]+)(?:,(-?[0-9.]+))?/);
+  if(!m) return;
+  setTimeout(function(){
+    if(!walker) return;
+    var px = parseFloat(m[1]), pz = parseFloat(m[2]), host = null;
+    for(var i=0;i<isles.length;i++){
+      var is = isles[i];
+      var u = (px-is.x)/is.shape.sx, v = (pz-is.z)/is.shape.sz;
+      if(Math.sqrt(u*u+v*v) <= Rat(is.shape, Math.atan2(v,u))*1.02){ host = is; break; }
+    }
+    walker.visible = true;
+    walker.position.set(px, host ? groundYAt(host, px, pz) : 0.02, pz);
+    walker.scale.setScalar(1.2);
+    if(m[3] !== undefined) walker.rotation.y = parseFloat(m[3]);
+    renderer.render(scene, camera);
+  }, 420);
+})();
+
+/* ?noveg=1 把树全部收掉：给小人 / 地标出特写时，树冠会把主体整个罩住 */
+if(/[?&]noveg=1/.test(location.search))
+  for(var nv=0; nv<TREE_MESHES.length; nv++) TREE_MESHES[nv].visible = false;
 
 requestAnimationFrame(function(){ animate(); });
 
