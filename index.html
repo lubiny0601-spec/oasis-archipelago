@@ -48,7 +48,12 @@ body{background:#a8dcf0;color:var(--ink);font-family:-apple-system,BlinkMacSyste
     radial-gradient(circle at 63% 27%, rgba(150,158,140,.28) 0 8%, rgba(150,158,140,0) 9%),
     radial-gradient(circle at 38% 60%, rgba(150,158,140,.22) 0 12%, rgba(150,158,140,0) 13%),
     radial-gradient(circle at 72% 68%, rgba(150,158,140,.18) 0 6%, rgba(150,158,140,0) 7%)}
-.stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:1}
+/* ACES 的副作用是中间调去饱和，低模风格靠色块说话，掉了饱和就发灰。
+   所以在合成这一层补回来 —— 比在 3D 里逐个材质调色省事，也不会被光照破坏。
+   夜景单独一套：夜里本来就要低饱和，只需要把对比拉起来，暖灯才跳得出来。 */
+.stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:1;
+  filter:saturate(1.16) contrast(1.05)}
+.stage.night canvas{filter:saturate(1.05) contrast(1.09) brightness(1.04)}
 .haze{display:none;position:absolute;inset:0;z-index:2;pointer-events:none;
   background:linear-gradient(180deg, rgba(210,239,250,.62) 0%, rgba(206,236,247,.30) 17%,
     rgba(200,232,245,.08) 31%, rgba(200,232,245,0) 44%)}
@@ -320,7 +325,15 @@ function mergeParts(parts){
    颜色没带任何光向信息 —— 所以树看着像一团糊球，给了色阶也白给。
    现在按每个三角面的法线与主光夹角，量化成 3 档：朝光最亮 / 侧面中间 / 背光最暗。
    量化而不是连续渐变，是为了保住低模的块面感。 */
-var SHADE_L = new THREE.Vector3(-3.6, 6.4, -2.2).normalize();
+/* ---- 太阳方位：P3 把主光从「正午」压到「下午四点」 ----
+   原来 L = (-3.6, 6.4, -2.2) 归一化后仰角 56.5°，接近正午顶光。
+   问题是这个机位是 38° 俯视 —— 顶光投出来的影子全缩在树冠自己正下方，
+   被树冠本身挡住，屏幕上就完全看不到「东西站在地上」这件事，
+   之前 P0 开了真阴影却仍然读作纸模型，根因就在这里。
+   压到 44° 后影长 ≈ 1.03 倍物高，影子从树冠底下伸出来，接触关系一下就成立。
+   这个常量同时是 faceShade 的亮面方向（顶点色是烘死的），必须与主光一致。 */
+var DAY_DIR  = new THREE.Vector3(-0.58, 0.70, -0.42).normalize();
+var SHADE_L  = DAY_DIR;
 function faceShade(geo, dHex, mHex, lHex, hiT, loT){
   var norSave = geo.attributes.normal.array.slice(0);   // 原法线是平滑的，用完还原
   geo.computeVertexNormals();                          // 非索引几何 → 这里算出来就是面法线
@@ -385,50 +398,157 @@ function grad(stops, t){
 var scene = new THREE.Scene();
 /* 大气透视：雾色取地平线附近的浅青（不是纯天空色），远处海面雾化后正好接住
    CSS 渐变的地平线，画面上缘才会「淡出去」而不是被海面方形边缘硬切一刀。 */
-scene.fog = new THREE.Fog(0xcbe8f4, 26, 50);
+scene.fog = new THREE.Fog(0xd6ecf6, 26, 50);
 var camera = new THREE.PerspectiveCamera(28, 1, 0.1, 120);
 var renderer = new THREE.WebGLRenderer({antialias:true, alpha:true, preserveDrawingBuffer:HERO});
 renderer.setPixelRatio(HERO ? Math.min(Math.max(qNum('dpr', 2), 1), 3)
                             : Math.min(window.devicePixelRatio||1, 2));
 renderer.outputEncoding = THREE.sRGBEncoding;
+/* P3 光与大气 · 一：色调映射
+   原来直出 sRGB（NoToneMapping）：亮部一过 1.0 就硬切成纯色，草地、樱花、
+   浅滩环这些本来就有高亮度的地方全部糊成一块塑料板；暗部又没有下压，
+   于是整张图「亮处没层次、暗处没重量」，颜色饱和度顶到天花板，是标准的
+   无色调映射渲染味。ACES 把高光滚降成肩部曲线，同时把中间调压一点再
+   回提，就得到「亮部有细节、暗部压得住」的胶片响应。 */
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.02;
 renderer.shadowMap.enabled = false;
 stage.appendChild(renderer.domElement);
 
 /* P0 地基一：真实投影 + 三光分冷暖
-   原来 shadowMap 全局关着，全场影子靠椭圆贴片伪造，物体读起来像纸模型；
-   三个光强度又接近（0.98/0.38/0.17），物体各面亮度差不到 15%，体积整个丢光。
-   现在：主光暖白略强 + 天光冷蓝压低 + 补光极弱 —— 靠冷暖差建立体感，
-   而不是靠亮度差（亮度差一拉大就发灰）。 */
+   P3 重标定：开 ACES 之后整条亮度曲线被压过一遍，原值会整体偏暗，
+   加上主光仰角从 56.5° 压到 44°（地面 cos 从 0.83 掉到 0.72），
+   主光要往上补。天光保持低位 —— 天光一高，阴影区就被抬起来，
+   影子再长也读不出"被遮住"。 */
 var SH_Q = HERO ? 3072 : (((navigator.maxTouchPoints||0) > 0 || window.innerWidth < 720) ? 1024 : 2048);
 var SH_R = 8.6;                        // 阴影相机半宽：总览要覆盖整个群岛
 renderer.shadowMap.enabled = location.search.indexOf('noshadow=1') < 0;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-var hemi = new THREE.HemisphereLight(0xc9e4ff, 0x9dbb78, 0.31); scene.add(hemi);
-var key  = new THREE.DirectionalLight(0xfff6ea, 0.98);
-key.position.set(-3.6, 6.4, -2.2);
+var hemi = new THREE.HemisphereLight(0xc9e4ff, 0x9dbb78, 0.28); scene.add(hemi);
+var key  = new THREE.DirectionalLight(0xfff4e2, 1.36);
+key.position.set(DAY_DIR.x*7.67, DAY_DIR.y*7.67, DAY_DIR.z*7.67);
 key.castShadow = true;
 key.shadow.mapSize.set(SH_Q, SH_Q);
-/* near/far 必须收紧：光源固定在距焦点 7.67 处，场景深度只有 ±1.5，
+/* near/far 必须收紧：光源固定在距焦点 7.67 处，场景深度只有 ±0.6，
    用 1.2~22 这种大跨度会把深度精度浪费掉，地面就会出现条纹状自阴影 */
-key.shadow.camera.near = 4.6;
-key.shadow.camera.far  = 11.4;
+key.shadow.camera.near = 6.2;
+key.shadow.camera.far  = 9.2;
 key.shadow.camera.left = -SH_R; key.shadow.camera.right  =  SH_R;
 key.shadow.camera.top  =  SH_R; key.shadow.camera.bottom = -SH_R;
+/* 这一行是 P0 埋下的坑：改了 left/right/near/far 之后必须重算投影矩阵，
+   THREE 的 ShadowMap.updateMatrices 只更新视图矩阵、不会碰 projectionMatrix。
+   漏了它，正交相机就还是构造时的 ±1 —— 阴影贴图只覆盖岛心一小块，
+   全场物体有 castShadow、地面有 receiveShadow，却是什么影子都投不出来。 */
+key.shadow.camera.updateProjectionMatrix();
 key.shadow.bias = -0.0006;
-key.shadow.normalBias = 0.02;
+key.shadow.normalBias = 0.012;
 scene.add(key); scene.add(key.target);
-var fill = new THREE.DirectionalLight(0x9ecbff, 0.11); fill.position.set(3.4, 2.4, 3.6); scene.add(fill);
+var fill = new THREE.DirectionalLight(0x9ecbff, 0.08); fill.position.set(3.4, 2.4, 3.6); scene.add(fill);
 
-var SHADOW_DIR = new THREE.Vector2(0.854, 0.521);
-var SHADOW_LEN = 0.20;                 // 假影退化成接地 AO，投影交给真阴影
+/* ============ P3 光与大气 · 天穹 ============
+   原来是「CSS 固定屏幕渐变 + 透明画布」：天是贴在屏幕上的图，不随视角动，
+   海面也没有可以反射的东西 —— 于是远处海面只能靠顶点色硬推浅色，
+   整张图读起来是「一块飘在蓝色背景前的模型」，没有世界边界。
+   现在换成真实天空球（BackSide，跟着相机走）：天顶→中层→地平线三段渐变，
+   再加一层「朝太阳方向的地平线暖光」。这层天空同时是海面菲涅尔反射的采样源，
+   海和天共用同一套颜色，远处海面自然过渡成天色。 */
+var SKY_CFG = {
+  day:   { top:0x2478bd, mid:0x74b8e0, hor:0xd6ecf6, glow:0xfff0d2, glowAmt:0.55 },
+  night: { top:0x050a18, mid:0x11243f, hor:0x2b4272, glow:0x8fb4f0, glowAmt:0.30 }
+};
+function skyColorSet(cfg){
+  return {
+    top: new THREE.Color(cfg.top).convertSRGBToLinear(),
+    mid: new THREE.Color(cfg.mid).convertSRGBToLinear(),
+    hor: new THREE.Color(cfg.hor).convertSRGBToLinear(),
+    glow:new THREE.Color(cfg.glow).convertSRGBToLinear()
+  };
+}
+var SKY_C = { day: skyColorSet(SKY_CFG.day), night: skyColorSet(SKY_CFG.night) };
+/* 复用的 uniform 对象：海面材质直接引用同一份，改一处两处同步 */
+var SKY_U = {
+  uTop:      { value: SKY_C.day.top.clone() },
+  uMid:      { value: SKY_C.day.mid.clone() },
+  uHor:      { value: SKY_C.day.hor.clone() },
+  uGlow:     { value: SKY_C.day.glow.clone() },
+  uGlowAmt:  { value: SKY_CFG.day.glowAmt },
+  uSunDir:   { value: DAY_DIR.clone() },
+  uSunAmt:   { value: 0.0 }
+};
+/* 海面专用：浪的时间轴 + 反射强度（触屏上单独减弱，省一点填充率） */
+var SEA_U = {
+  uTime: { value: 0 },
+  uRefl: { value: ((navigator.maxTouchPoints||0) > 0 || window.innerWidth < 720) ? 0.74 : 0.82 }
+};
+/* GLSL 里的天空函数：天穹和海面共用同一段，保证反射色与天顶色严丝合缝 */
+var SKY_GLSL = [
+'uniform vec3 uTop; uniform vec3 uMid; uniform vec3 uHor; uniform vec3 uGlow;',
+'uniform float uGlowAmt; uniform vec3 uSunDir; uniform float uSunAmt;',
+'vec3 skyColor(vec3 d){',
+'  float h = clamp(d.y, -1.0, 1.0);',
+'  vec3 c = mix(uHor, uMid, smoothstep(-0.03, 0.26, h));',
+'  c = mix(c, uTop, smoothstep(0.16, 0.80, h));',
+'  vec3 dh = vec3(d.x, 0.0, d.z);',
+'  vec3 sh = normalize(vec3(uSunDir.x, 0.0, uSunDir.z) + vec3(1e-5, 0.0, 0.0));',
+'  float sd = max(dot(dh / max(length(dh), 1e-4), sh), 0.0);',
+'  c += uGlow * uGlowAmt * pow(sd, 2.4) * (1.0 - smoothstep(-0.06, 0.40, h));',
+'  float sa = max(dot(d, uSunDir), 0.0);',
+'  c += uGlow * uSunAmt * (pow(sa, 14.0) * 0.30 + pow(sa, 260.0) * 1.6);',
+'  return c;',
+'}'
+].join('\n');
+
+var skyMat = new THREE.ShaderMaterial({
+  uniforms: SKY_U,
+  side: THREE.BackSide, depthWrite: false, depthTest: true, fog: false,
+  vertexShader: [
+    'varying vec3 vDir;',
+    'void main(){',
+    '  vDir = position;',
+    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+    '}'
+  ].join('\n'),
+  fragmentShader: [
+    SKY_GLSL,
+    'varying vec3 vDir;',
+    'void main(){',
+    '  gl_FragColor = vec4(skyColor(normalize(vDir)), 1.0);',
+    '  #include <tonemapping_fragment>',
+    '  #include <encodings_fragment>',
+    '}'
+  ].join('\n')
+});
+var skyDome = new THREE.Mesh(new THREE.SphereGeometry(88, 32, 20), skyMat);
+skyDome.frustumCulled = false;
+skyDome.renderOrder = -999;
+scene.add(skyDome);
+/* 兜底的 CSS 渐变只在 skyDome 万一编译失败时才看得到，正常永远被它压住 */
+
+var SHADOW_DIR = new THREE.Vector2(0.810, 0.587);   /* 与 DAY_DIR 的水平投影反相 —— 假影必须跟真影一个方向 */
+/* P3：主光压低之后，投影贴片也要跟着「长」出来。
+   原来 SHADOW_LEN 0.20 是 P0 把假影退化成接地 AO 时压下去的（当时指望真阴影），
+   但实测这套渲染组合下真阴影只剩一层很淡的接触暗部，物体依然读不出「站在地上」。
+   低模风格里方向明确的烘焙投影本来就是标准做法：长度取 h/tan(44°)≈1.03 的九成，
+   三层椭圆由外到内递深，边缘自然散开。 */
+var SHADOW_LEN = 0.74;
 
 /* 阴影相机跟着玩家走：总览要罩住整个群岛（±8.6），近景其实只需要一座岛（±2.7）。
    覆盖范围缩 3 倍，同尺寸贴图的有效分辨率就高 3 倍 —— 近景地面那些条纹状
    自阴影（shadow acne）主要是分辨率不够、掠射角又太平时挤出来的。 */
 var KEY_DIST = 7.67;
-var KEY_DIR  = new THREE.Vector3(-0.4694, 0.8345, -0.2869);
+/* 白天的主光方向 = DAY_DIR（在几何库之前定义，faceShade 也用它）。
+   它同时是「太阳在天上的方位」，天穹那层朝它加暖光 ——
+   P3 之前光只有强度没有方位、天空是贴图，矛盾看不出来；
+   有了真天穹之后，光从哪来就必须和天色暗示的方向一致。 */
+/* 夜里的月亮：画面右上、略远（-z 是画面深处）。CSS 那轮月亮是钉在屏幕上的，
+   永远跟光对不上，所以 P3 把光真搬到月亮这一侧 —— 岛变剪影、灯变主角。 */
+var MOON_DIR = new THREE.Vector3(0.50, 0.52, -0.70).normalize();
+var KEY_DIR  = DAY_DIR.clone();
+var SH_FOCUS = { x:0, z:0, r:SH_R };     /* 记住当前阴影取景，切昼夜后要按新方向重打 */
 function setShadowFocus(x, z, r){
+  SH_FOCUS.x = x; SH_FOCUS.z = z;
+  if(r) SH_FOCUS.r = r;
   key.position.set(x + KEY_DIR.x*KEY_DIST, KEY_DIR.y*KEY_DIST, z + KEY_DIR.z*KEY_DIST);
   key.target.position.set(x, 0, z);
   key.target.updateMatrixWorld();
@@ -438,6 +558,11 @@ function setShadowFocus(x, z, r){
     key.shadow.camera.top  =  r; key.shadow.camera.bottom = -r;
     key.shadow.camera.updateProjectionMatrix();
   }
+}
+/* 换主光方位（昼/夜）：光的 position、阴影相机、天穹的太阳方位一起换 */
+function setKeyDir(dir){
+  KEY_DIR.copy(dir);
+  setShadowFocus(SH_FOCUS.x, SH_FOCUS.z, 0);
 }
 
 /* ============ 布景几何库（与单岛版同一套，原样复用） ============ */
@@ -1163,7 +1288,7 @@ function buildLand(shape, cfg){
   var gset = cfg.grass || 1;      // 草地明度：>1 偏亮，<1 偏深
   var gt = cfg.grassTint || [1,1,1];   // 草地色偏：光调亮度做不出气候差异，得真的换色
   /* 岸线过渡：沙滩与草地的分界不再是一刀切 */
-  var SAND_C = new THREE.Color('#f6e7bc'), GRASS_C = new THREE.Color('#88c657');
+  var SAND_C = new THREE.Color('#f6e7bc'), GRASS_C = new THREE.Color('#84c95c');
   var SAND_HI = -0.118, GRASS_LO = -0.032;   // 沙→草过渡带的高度区间
 
   for(var i=0;i<NA;i++){
@@ -1515,25 +1640,30 @@ function buildShadows(specs, grp, cfg){
     return y === null ? profTopY(0.88) : y;
   };
   var SEG = 10;
-  var c = new THREE.Color('#1d4414'); c.convertSRGBToLinear();
+  var c = new THREE.Color('#31474d'); c.convertSRGBToLinear();
   var ang = Math.atan2(SHADOW_DIR.y, SHADOW_DIR.x);
   var ca = Math.cos(ang), sa = Math.sin(ang);
-  var LAYERS = [{k:1.00, op:0.050},{k:0.76, op:0.065},{k:0.50, op:0.085}];
+  /* 三层由外到内递深：单一椭圆会读成一块贴纸；层间尺寸差太大又会糊成一片污渍，
+     所以外圈只比中圈大 25%，靠不透明度叠出柔边 */
+  var LAYERS = [{k:1.00, op:0.32},{k:0.74, op:0.36},{k:0.47, op:0.40}];
   for(var L=0;L<LAYERS.length;L++){
     var pos=[], col=[], idx=[], base=0;
     for(var i=0;i<specs.length;i++){
       var sp = specs[i];
       var len = sp.h * SHADOW_LEN;
-      var rx = (sp.r + len*0.62) * LAYERS[L].k;
-      var rz = (sp.r * 1.10)      * LAYERS[L].k;
-      var cx = sp.x + SHADOW_DIR.x * len * 0.52;
-      var cz = sp.z + SHADOW_DIR.y * len * 0.52;
+      var rx = (sp.r + len*0.55) * LAYERS[L].k;
+      var rz = (sp.r * 0.98)      * LAYERS[L].k;
+      var cx = sp.x + SHADOW_DIR.x * len * 0.46;
+      var cz = sp.z + SHADOW_DIR.y * len * 0.46;
       var ly = groundOf(cx, cz) + 0.0042 + L*0.0004;
       pos.push(cx, ly, cz); col.push(c.r,c.g,c.b);
       for(var s2=0;s2<SEG;s2++){
         var a2 = s2/SEG*TAU;
         var lx = Math.cos(a2)*rx, lz = Math.sin(a2)*rz;
-        pos.push(cx + lx*ca - lz*sa, ly, cz + lx*sa + lz*ca);
+        var qx = cx + lx*ca - lz*sa, qz = cz + lx*sa + lz*ca;
+        /* 每个环点单独贴地：影子整片躺在一个高度上，遇到坡地就会被地面吃掉半边，
+           剩下的残片看起来像一道斜楔子，而不是「影子」。地形起伏 0.01 级就足够毁掉它。 */
+        pos.push(qx, groundOf(qx, qz) + 0.0042 + L*0.0004, qz);
         col.push(c.r,c.g,c.b);
       }
       for(var s3=1;s3<=SEG;s3++){
@@ -1679,7 +1809,61 @@ function buildSea(isles){
   }
   geo.setAttribute('color', new THREE.BufferAttribute(col,3));
   geo.computeVertexNormals();
-  var mat = new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.72, metalness:0.0});
+  /* ---- P3 光与大气 · 海面 ----
+     原来海面是一块「按离岸距离上色的哑光板」：颜色只有顶点色，跟视线没关系，
+     所以不管从哪个角度看都是同一个青，近处和远处除了雾没有区别 ——
+     这是整张图最缺「空气」的地方。
+     真实的海是：俯视看到水色，掠射看到天空的镜面反射（菲涅尔），
+     所以越远越接近天色。这里就用同一个 skyColor() 采样天空，
+     按菲涅尔混进去，再用两层低频 sin 扰动水面法线让反射碎成波光。
+     海和天因此共用一套颜色，远处自然连成一片。 */
+  var mat = new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.62, metalness:0.0});
+  mat.onBeforeCompile = function(sh){
+    sh.uniforms.uTop     = SKY_U.uTop;
+    sh.uniforms.uMid     = SKY_U.uMid;
+    sh.uniforms.uHor     = SKY_U.uHor;
+    sh.uniforms.uGlow    = SKY_U.uGlow;
+    sh.uniforms.uGlowAmt = SKY_U.uGlowAmt;
+    sh.uniforms.uSunDir  = SKY_U.uSunDir;
+    sh.uniforms.uSunAmt  = SKY_U.uSunAmt;
+    sh.uniforms.uTime    = SEA_U.uTime;
+    sh.uniforms.uRefl    = SEA_U.uRefl;
+
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWPos;')
+      .replace('#include <begin_vertex>',
+               '#include <begin_vertex>\n  vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>',
+               '#include <common>\nvarying vec3 vWPos;\nuniform float uTime;\nuniform float uRefl;\n' + SKY_GLSL)
+      /* 在 outgoingLight 定稿前（output_fragment 会写进 gl_FragColor）替换 */
+      /* 注入点必须用 tonemapping_fragment：这个 three 构建里没有 output_fragment
+         这个 chunk（r128 是直接写 gl_FragColor = vec4(outgoingLight, a)），
+         所以要在色调映射之前改 gl_FragColor —— 此时它已经是线性的 outgoingLight，
+         而 fog 还没叠上来，次序正好。 */
+      .replace('#include <tonemapping_fragment>', [
+        'vec3 Vw = normalize(cameraPosition - vWPos);',
+        /* 海面几何本来就接近水平，法线直接在世界空间合成，不用反算视图空间 */
+        'float wv1 = sin(vWPos.x*5.1 + uTime*0.95) * cos(vWPos.z*4.3 - uTime*0.72);',
+        'float wv2 = sin((vWPos.x*0.72 + vWPos.z*0.69)*8.3 - uTime*1.35);',
+        'float wv3 = cos(vWPos.x*2.7 - vWPos.z*3.1 + uTime*0.45);',
+        /* 远处不做细波：掠射角下法线稍微一动，反射方向就大幅摆动，
+           叠上天空渐变会放大成一片"磨砂玻璃"大斑。所以扰动幅度要小、
+           距离衰减要早 —— 远处的海只剩大尺度的明暗，波纹交给近处。 */
+        'float wFar = 1.0 - smoothstep(3.5, 12.0, length(vWPos.xz));',
+        'vec3 nW = normalize(vec3((wv1*0.010 + wv2*0.006) * (0.35 + 0.65*wFar), 1.0, (wv2*0.010 - wv3*0.005) * (0.35 + 0.65*wFar)));',
+        /* Schlick 菲涅尔：俯视看水色，掠射看天色。指数 3.6 而不是 5 —— 这个机位
+           俯角 38°、画面顶部的海面只有 24°，真实值（F≈0.09）在这个尺度上看不出来，
+           稍作夸张才能读出"越远越接近天"的纵深 */
+        'float ct = clamp(dot(nW, Vw), 0.0, 1.0);',
+        'float fres = 0.045 + 0.955 * pow(1.0 - ct, 3.6);',
+        'vec3 Rw = reflect(-Vw, nW);',
+        'vec3 skyRef = skyColor(normalize(vec3(Rw.x, max(Rw.y, 0.015), Rw.z)));',
+        'gl_FragColor.rgb = mix(gl_FragColor.rgb, skyRef, fres * uRefl);',
+        '#include <tonemapping_fragment>'
+      ].join('\n'));
+  };
   var mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
   return mesh;
@@ -3111,7 +3295,10 @@ function stepTween(){
 }
 
 /* ============ 模式：群岛 / 单岛 ============ */
-var MODE = 'arch', curIsle = null, autoSpin = true;
+/* snap 是截图模式，"构图可复现"是它的全部意义 —— 但这行之前写死 autoSpin=true，
+   每帧 theta 都在涨，而无头环境下 rAF 帧数又不定，于是同一张 URL 每次出图角度都不同，
+   改前改后的对比根本对不齐（P0~P2 的对比图都吃过这个亏）。 */
+var MODE = 'arch', curIsle = null, autoSpin = !SNAP;
 
 /* 进岛就只留这一座：邻近岛会从视野边缘挤进来，把「你在一座岛上」的
    空间感打碎。hide 掉以后镜头怎么转都是孤岛，正好是单岛版的味道 */
@@ -3379,17 +3566,31 @@ function tintScene(on){
     else   m.color.copy(m.userData.__base);
   }
 }
+/* 天空换档：天穹的三个色 + 太阳/月亮方位 + 地平线暖光强度，
+   海面的菲涅尔反射引用的是同一份 uniform，所以会跟着一起换 */
+function applySky(which){
+  var c = SKY_C[which], f = SKY_CFG[which];
+  SKY_U.uTop.value.copy(c.top);
+  SKY_U.uMid.value.copy(c.mid);
+  SKY_U.uHor.value.copy(c.hor);
+  SKY_U.uGlow.value.copy(c.glow);
+  SKY_U.uGlowAmt.value = f.glowAmt;
+}
 function setNight(on){
   nightOn = on;
   stage.classList.toggle('night', on);
   document.getElementById('light').classList.toggle('on', on);
   if(on){
-    key.color.setHex(0xb9cfff);  key.intensity = 0.42;
-    hemi.color.setHex(0x456ab0); hemi.groundColor.setHex(0x0c1226); hemi.intensity = 0.22;
-    fill.color.setHex(0x8fb6ff); fill.intensity = 0.16;
+    applySky('night');
+    setKeyDir(MOON_DIR);                                 /* 月光从画面右上那一侧来 */
+    SKY_U.uSunDir.value.copy(MOON_DIR);
+    SKY_U.uSunAmt.value = 0.55;                          /* 天穹上那一小片月晕 */
+    key.color.setHex(0xb9cfff);  key.intensity = 1.12;
+    hemi.color.setHex(0x456ab0); hemi.groundColor.setHex(0x0c1226); hemi.intensity = 0.36;
+    fill.color.setHex(0x8fb6ff); fill.intensity = 0.20;
     tintScene(true);
     sea.material.color.copy(SEA_BASE).multiplyScalar(0.44);   /* 再压一档，海才真的"入夜" */
-    for(var sm=0; sm<shelfMats.length; sm++) shelfMats[sm].opacity = 0.34;
+    for(var sm=0; sm<shelfMats.length; sm++) shelfMats[sm].opacity = 0.16;
     cloudMat.emissiveIntensity = 0.05;
     ROUTE_MAT.uniforms.uColor.value.setHex(0x9fe3ff);   /* 夜里航线像浮标灯 */
     scene.fog.color.setHex(0x2b4272);                   /* 对齐夜空渐变中下部，远处海面融进夜幕 */
@@ -3400,14 +3601,18 @@ function setNight(on){
     for(var gi=0; gi<WATER_GLOWS.length; gi++) WATER_GLOWS[gi].visible = true;
     WATER_GLOW_MAT.uniforms.uA.value = 1.10;
   } else {
-    key.color.setHex(0xfff6ea);  key.intensity = 0.98;      /* 与 P0 日光配置保持一致 */
-    hemi.color.setHex(0xc9e4ff); hemi.groundColor.setHex(0x9dbb78); hemi.intensity = 0.31;
-    fill.color.setHex(0x9ecbff); fill.intensity = 0.11;
+    applySky('day');
+    setKeyDir(DAY_DIR);
+    SKY_U.uSunDir.value.copy(DAY_DIR);
+    SKY_U.uSunAmt.value = 0.0;
+    key.color.setHex(0xfff4e2);  key.intensity = 1.36;      /* 与 P3 日光配置保持一致 */
+    hemi.color.setHex(0xc9e4ff); hemi.groundColor.setHex(0x9dbb78); hemi.intensity = 0.28;
+    fill.color.setHex(0x9ecbff); fill.intensity = 0.08;
     tintScene(false);
     sea.material.color.copy(SEA_BASE);
     for(var sm2=0; sm2<shelfMats.length; sm2++) shelfMats[sm2].opacity = 1.0;    cloudMat.emissiveIntensity = 0.42;
     ROUTE_MAT.uniforms.uColor.value.setHex(0xf0ffff);
-    scene.fog.color.setHex(0xcbe8f4);
+    scene.fog.color.setHex(0xd6ecf6);
     for(var li3=0; li3<LAMP_LIGHTS.length; li3++){
       LAMP_LIGHTS[li3].intensity = 0;
       LAMP_LIGHTS[li3].visible = false;
@@ -3525,6 +3730,9 @@ function animate(){
   stepWalk(dt);           /* 自由走：同样覆写相机焦点，须在 updateCamera 之前 */
   stepVoyage(dt);         /* 跨岛乘船：登船/航行/到港的状态机 */
   updateCamera();
+  /* 天穹跟着相机走（永远在球心），海面的浪用同一个时间轴 */
+  skyDome.position.copy(camera.position);
+  SEA_U.uTime.value = t;
   updateLabels();
   // 云慢慢往上飘一点，别完全静止
   for(var ci2=0; ci2<cloudList.length; ci2++){
