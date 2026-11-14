@@ -205,6 +205,147 @@ html.hero .brand, html.hero .hint, html.hero .bar,
 html.hero .labels, html.hero .sheet, html.hero #joy,
 html.hero #dpad, html.hero #voy{display:none!important}
 html.hero .stage{cursor:default}
+
+/* ==========================================================================
+   P4 · 界面层 —— 手绘纸质标签体系
+   --------------------------------------------------------------------------
+   世界（P0~P3）已经是「低模色块 + 描边 + 手绘笔触」，但控件还停在 iOS 玻璃
+   胶囊：纯白底、backdrop-blur、999px 全圆角、灰字。两套语言打架，而且七个
+   白色胶囊在手机上是全场最亮的元素，把主角（岛）压下去了。
+   这里把 UI 统一成「手绘地图上的贴纸标签」：暖纸底、墨绿细描边、硬底影
+   （纸片压在纸上），尖角指向目标。全部覆盖写在本段，不改上面的原始规则，
+   要回滚整段删掉即可。
+   ========================================================================== */
+:root{
+  --ink:#17352c;                        /* 墨绿，替代原来的 #16302a */
+  --paper-hi:#f9f2dc; --paper-lo:#ebdfc0;  /* 米黄纸（纯白会显得是塑料，
+                                              比草地深一档才看得出是「纸」） */
+  --paper-edge:rgba(30,64,52,.24);
+  --paper-hard:0 2px 0 rgba(26,60,48,.15);
+  --paper-soft:0 7px 16px rgba(14,48,40,.11);
+}
+
+/* ---- 岛名标签：白胶囊 → 纸质小牌 + 下方尖角（像插在岛上的牌子） ---- */
+.lab{
+  font-size:11.5px;font-weight:700;letter-spacing:.3px;color:var(--ink);
+  background:linear-gradient(180deg,var(--paper-hi) 0%,var(--paper-lo) 100%);
+  border:1px solid var(--paper-edge);border-radius:8px;
+  padding:4.5px 10px 4px;
+  box-shadow:var(--paper-hard),var(--paper-soft);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.lab::after{                            /* 尖角：底边两条边着色，其余透明 */
+  content:'';position:absolute;left:50%;bottom:-4.5px;width:7px;height:7px;
+  transform:translateX(-50%) rotate(45deg);
+  background:var(--paper-lo);
+  border-right:1px solid var(--paper-edge);border-bottom:1px solid var(--paper-edge);
+}
+.lab b{font-weight:800;letter-spacing:.2px}
+.lab em{font-style:normal;font-weight:700;font-size:9.5px;letter-spacing:.85px;
+  opacity:.62;margin-right:5px}          /* 英文原名降级：品牌信息留着，但不抢中文 */
+.lab i{opacity:.40;margin-left:6px;font-size:9.5px;letter-spacing:.6px}
+
+/* ---- 底栏按钮：同一套纸片，激活态换墨绿实底（不是纯白+灰字） ---- */
+.bar button{
+  border-radius:11px;border:1px solid var(--paper-edge);
+  background:linear-gradient(180deg,var(--paper-hi) 0%,var(--paper-lo) 100%);
+  color:var(--ink);font-weight:700;
+  box-shadow:var(--paper-hard),var(--paper-soft);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  transition:transform .12s,background .18s,color .18s,border-color .18s,box-shadow .18s;
+}
+.bar button:hover{background:linear-gradient(180deg,#fdf7e6 0%,#efe4c8 100%)}
+.bar button:active{transform:translateY(1.5px);box-shadow:0 1px 0 rgba(26,60,48,.15),0 3px 8px rgba(14,48,40,.10)}
+.bar button.on{
+  background:linear-gradient(180deg,#2f6c58 0%,#1d4f42 100%);color:#f7f3e5;
+  border-color:#17453a;
+  box-shadow:0 2px 0 rgba(10,36,28,.45),0 8px 18px rgba(10,38,30,.24);
+}
+.bar button.on:hover{background:linear-gradient(180deg,#357a63 0%,#215948 100%)}
+.bar button.act{
+  background:linear-gradient(180deg,var(--paper-hi) 0%,var(--paper-lo) 100%);
+  color:#41604f;font-weight:600;
+}
+.bar button:focus-visible{outline:2px solid #1d4f42;outline-offset:3px}
+
+/* ---- 提示条：深色墨绿纸条（浮在亮海面上，还是得靠深色保可读） ---- */
+.hint{
+  color:#f3f0e2;background:rgba(20,52,44,.80);border:1px solid rgba(247,243,229,.22);
+  border-radius:9px;
+  box-shadow:0 2px 0 rgba(8,28,22,.32),0 9px 22px rgba(8,28,22,.18);
+  backdrop-filter:none;-webkit-backdrop-filter:none;letter-spacing:.2px;
+}
+.hint b{color:#a9e9c9;font-weight:800}
+
+/* ---- 作品卡：白卡 → 纸卡，标题走衬线（印刷品感），正文保持无衬线保清晰 ---- */
+.sheet-in{
+  background:#faf4e2;border:1px solid var(--paper-edge);border-radius:17px;
+  box-shadow:0 2px 0 rgba(26,60,48,.14),0 -14px 46px rgba(10,44,38,.26);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+.sheet h2{font-family:Georgia,"Songti SC","Noto Serif SC","SimSun",serif;
+  font-weight:700;letter-spacing:.2px;color:#15332b}
+.sheet .tag{border-radius:5px;letter-spacing:1.1px}
+.sheet .x{border-radius:7px}
+.sheet .x:hover{background:rgba(22,48,42,.10)}
+
+/* ---- 品牌：衬线字 + 一条手绘短横，左上角不再是一块光秃秃的白字 ---- */
+.brand h1{font-family:Georgia,"Songti SC","Noto Serif SC","SimSun",serif;
+  font-size:23px;font-weight:700;letter-spacing:3px}
+.brand h1::after{content:'';display:block;width:30px;height:1.5px;margin-top:8px;
+  background:currentColor;opacity:.5;border-radius:2px}
+
+/* ---- 乘船条 / 提示条：同一套「深墨绿纸条」（浮在亮海面上必须靠深色保可读，
+        所以这里不用纸白，只统一圆角、描边和硬底影，跟上面的纸片呼应） ---- */
+.voy-t{
+  color:#f3f0e2;background:rgba(20,52,44,.82);border:1px solid rgba(247,243,229,.22);
+  border-radius:8px;letter-spacing:.06em;
+  box-shadow:0 2px 0 rgba(8,28,22,.32),0 8px 18px rgba(8,28,22,.16);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+#voyChips button{
+  color:#f3f0e2;background:rgba(20,52,44,.72);border:1px solid rgba(247,243,229,.26);
+  border-radius:8px;
+  box-shadow:0 2px 0 rgba(8,28,22,.28),0 6px 14px rgba(8,28,22,.14);
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  transition:transform .12s,background .16s,color .16s;
+}
+#voyChips button:active{transform:translateY(1.5px);background:rgba(247,243,229,.90);color:#17352c}
+
+/* ---- 摇杆 / 方向键：只把描边和圆角跟纸片对齐，保持半透明深底（gameplay 控件） ---- */
+#joyKnob{background:rgba(251,247,234,.74);box-shadow:0 2px 0 rgba(10,30,25,.22),0 3px 12px rgba(10,30,25,.28)}
+#dpad button{border-radius:9px;border-color:rgba(247,243,229,.30)}
+
+/* ---- 夜间：换成深墨蓝纸片，描边转冷光 ---- */
+.stage.night .lab{
+  background:linear-gradient(180deg,#243352 0%,#1a2740 100%);
+  border-color:rgba(150,186,255,.24);color:#dde9fc;
+  box-shadow:0 2px 0 rgba(2,6,18,.50),0 7px 18px rgba(2,6,18,.40);
+}
+.stage.night .lab::after{background:#1a2740;border-right-color:rgba(150,186,255,.24);border-bottom-color:rgba(150,186,255,.24)}
+.stage.night .lab i{opacity:.45}
+.stage.night ~ .bar button{
+  background:linear-gradient(180deg,#243352 0%,#1a2740 100%);
+  border-color:rgba(150,186,255,.24);color:#dce8fb;
+  box-shadow:0 2px 0 rgba(2,6,18,.50),0 7px 18px rgba(2,6,18,.40);
+}
+.stage.night ~ .bar button.on{
+  background:linear-gradient(180deg,#3d7fd8 0%,#2a63b4 100%);border-color:#2a63b4;color:#fff;
+  box-shadow:0 2px 0 rgba(6,20,48,.55),0 8px 20px rgba(20,60,140,.34);
+}
+.stage.night .sheet .sheet-in{
+  background:#171f33;border-color:rgba(150,186,255,.20);
+  box-shadow:0 2px 0 rgba(2,6,18,.50),0 -14px 46px rgba(2,8,22,.62);
+}
+.stage.night .sheet h2{color:#eef5ff}
+.stage.night .sheet .x{background:rgba(190,215,255,.10);border-radius:7px}
+
+@media (max-width:620px){
+  .lab{font-size:10.5px;padding:3.5px 8px 3px}
+  .lab i{font-size:9px;margin-left:4px}
+  .brand h1{font-size:20px;letter-spacing:2.4px}
+  .bar button{border-radius:10px}
+}
 </style>
 </head>
 <body>
@@ -1921,6 +2062,15 @@ var WORKS = {
   }
 };
 var WORK_SEQ = ['gate','houseBlue','houseWood','pavilion','windmill','lookout','torii'];
+
+/* 标签标题排版：'ASHEN CROWN 灰烬王冠' 这种「英文原名 + 中文名」等权重堆在
+   一张小纸牌上，英文大写会比中文抢眼得多（字数多一倍）。把开头的纯 ASCII
+   段降成小字（保留品牌原名），中文段做主体 —— 先读到「灰烬王冠」，
+   要英文再看。纯英文标题（OASIS）原样输出。 */
+function labTitleHTML(t){
+  var m = /^([\x20-\x7E]+?)\s+([^ -~].*)$/.exec(t);
+  return m ? '<em>' + m[1] + '</em><b>' + m[2] + '</b>' : '<b>' + t + '</b>';
+}
 var NAME_BY_KIND = {
   windmill:'风车', gate:'石门', torii:'鸟居', houseBlue:'蓝顶小屋', houseWood:'木屋',
   pavilion:'凉亭', lookout:'瞭望塔'
@@ -2082,7 +2232,8 @@ ISLES_CFG.forEach(function(cfg, idx){
   // 岛名标签
   var lab = document.createElement('div');
   lab.className = 'lab';
-  lab.innerHTML = '<b>' + (WORKS[cfg.id] ? WORKS[cfg.id].title : cfg.id) + '</b><i>0' + (idx+1) + '</i>';
+  lab.innerHTML = labTitleHTML(WORKS[cfg.id] ? WORKS[cfg.id].title : cfg.id)
+                + '<i>0' + (idx+1) + '</i>';
   labelsEl.appendChild(lab);
 
   isles.push({cfg:cfg, shape:shape, grp:grp, x:cfg.x, z:cfg.z, lm:lm, dot:dot, lab:lab,
@@ -3717,6 +3868,9 @@ function updateLabels(){
       continue;
     }
     var px = (_labV.x*0.5+0.5)*W, py = (-_labV.y*0.5+0.5)*H;
+    /* P4：标签下沿多了一个指向岛顶的小尖角，整体上移让尖角尖对准锚点，
+       否则尖角会悬在岛上一截空气里 */
+    py -= 13;
     /* 标签横向不出框：贴边时往内推（窄屏尤其容易切掉半截字） */
     var lw = el.offsetWidth || 96, half = lw*0.5 + 8;
     if(px < half) px = half;
@@ -3921,6 +4075,11 @@ resize();
 })();
 
 var hintGone = false;
+/* ?voyui=1 调试：不走到码头也把乘船条拉起来 —— 单独调这一条的样式/断点时用，
+   省得每次都要靠 ?wpose= 把小人挪到码头根上 */
+if(/[?&]voyui=1/.test(location.search)){
+  setTimeout(function(){ setVoy(true, isleById('gate') || isles[0]); }, SNAP ? 120 : 400);
+}
 function dropHint(){
   if(hintGone) return;
   hintGone = true;
