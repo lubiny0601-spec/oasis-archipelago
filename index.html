@@ -532,7 +532,7 @@ var SHADOW_DIR = new THREE.Vector2(0.810, 0.587);   /* 与 DAY_DIR 的水平投�
    但实测这套渲染组合下真阴影只剩一层很淡的接触暗部，物体依然读不出「站在地上」。
    低模风格里方向明确的烘焙投影本来就是标准做法：长度取 h/tan(44°)≈1.03 的九成，
    三层椭圆由外到内递深，边缘自然散开。 */
-var SHADOW_LEN = 0.62;
+var SHADOW_LEN = 0.42;
 
 /* 阴影相机跟着玩家走：总览要罩住整个群岛（±8.6），近景其实只需要一座岛（±2.7）。
    覆盖范围缩 3 倍，同尺寸贴图的有效分辨率就高 3 倍 —— 近景地面那些条纹状
@@ -1455,7 +1455,7 @@ function scatterIsle(shape, cfg, grp, rnd){
     var gi = Math.floor(rnd()*buckets[kind].length);
     buckets[kind][gi].push({x:x, y:y, z:z, rot:(opt.rot !== undefined ? opt.rot : rnd()*TAU), s:s});
     occupy(x, z, rad);
-    if((opt.hh||0.10)*s >= 0.18) shadows.push({x:x, z:z, r:(opt.sr||0.030)*s, h:(opt.hh||0.10)*s});
+    if((opt.hh||0.10)*s >= 0.24) shadows.push({x:x, z:z, r:(opt.sr||0.030)*s, h:(opt.hh||0.10)*s});
     return true;
   }
 
@@ -1646,15 +1646,15 @@ function buildShadows(specs, grp, cfg){
   var c = new THREE.Color('#31474d'); c.convertSRGBToLinear();
   var ang = Math.atan2(SHADOW_DIR.y, SHADOW_DIR.x);
   var ca = Math.cos(ang), sa = Math.sin(ang);
-  /* 三层由外到内递深：单一椭圆会读成一块贴纸；层间尺寸差太大又会糊成一片污渍，
-     所以外圈只比中圈大 25%，靠不透明度叠出柔边 */
-  var LAYERS = [{k:1.00, op:0.26},{k:0.62, op:0.32}];
+  /* 单层柔影：两层叠加中心不透明度近 0.5，几十棵树就是几十颗深斑铺满草地（老大反馈「乱」）。
+     单层 0.22 + 椭圆沿光向拉长，读作「一条淡方向影」，草地保持干净 */
+  var LAYERS = [{k:1.00, op:0.22}];
   for(var L=0;L<LAYERS.length;L++){
     var pos=[], col=[], idx=[], base=0;
     for(var i=0;i<specs.length;i++){
       var sp = specs[i];
       var len = sp.h * SHADOW_LEN;
-      var rx = (sp.r + len*0.55) * LAYERS[L].k;
+      var rx = (sp.r + len*0.72) * LAYERS[L].k;
       var rz = (sp.r * 0.98)      * LAYERS[L].k;
       var cx = sp.x + SHADOW_DIR.x * len * 0.46;
       var cz = sp.z + SHADOW_DIR.y * len * 0.46;
