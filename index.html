@@ -51,9 +51,7 @@ body{background:#a8dcf0;color:var(--ink);font-family:-apple-system,BlinkMacSyste
 /* ACES 的副作用是中间调去饱和，低模风格靠色块说话，掉了饱和就发灰。
    所以在合成这一层补回来 —— 比在 3D 里逐个材质调色省事，也不会被光照破坏。
    夜景单独一套：夜里本来就要低饱和，只需要把对比拉起来，暖灯才跳得出来。 */
-.stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:1;
-  filter:saturate(1.16) contrast(1.05)}
-.stage.night canvas{filter:saturate(1.05) contrast(1.09) brightness(1.04)}
+.stage canvas{position:absolute;inset:0;display:block;width:100%;height:100%;z-index:1}
 .haze{display:none;position:absolute;inset:0;z-index:2;pointer-events:none;
   background:linear-gradient(180deg, rgba(210,239,250,.62) 0%, rgba(206,236,247,.30) 17%,
     rgba(200,232,245,.08) 31%, rgba(200,232,245,0) 44%)}
@@ -411,7 +409,7 @@ renderer.outputEncoding = THREE.sRGBEncoding;
    无色调映射渲染味。ACES 把高光滚降成肩部曲线，同时把中间调压一点再
    回提，就得到「亮部有细节、暗部压得住」的胶片响应。 */
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.02;
+renderer.toneMappingExposure = 1.10;
 renderer.shadowMap.enabled = false;
 stage.appendChild(renderer.domElement);
 
@@ -422,7 +420,10 @@ stage.appendChild(renderer.domElement);
    影子再长也读不出"被遮住"。 */
 var SH_Q = HERO ? 3072 : (((navigator.maxTouchPoints||0) > 0 || window.innerWidth < 720) ? 1024 : 2048);
 var SH_R = 8.6;                        // 阴影相机半宽：总览要覆盖整个群岛
-renderer.shadowMap.enabled = location.search.indexOf('noshadow=1') < 0;
+/* P3 复盘：真阴影在这套 three 构建里与光照路径脱节，地面上只剩一层
+   灰蒙蒙的阴影贴图污渍 —— 这正是「看着糊」的来源之一。关掉，省一张
+   2048 深度贴图 + 163 个 InstancedMesh 的每帧投影，投影全权交给贴地影。 */
+renderer.shadowMap.enabled = false;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 var hemi = new THREE.HemisphereLight(0xc9e4ff, 0x9dbb78, 0.28); scene.add(hemi);
@@ -531,7 +532,7 @@ var SHADOW_DIR = new THREE.Vector2(0.810, 0.587);   /* 与 DAY_DIR 的水平投�
    但实测这套渲染组合下真阴影只剩一层很淡的接触暗部，物体依然读不出「站在地上」。
    低模风格里方向明确的烘焙投影本来就是标准做法：长度取 h/tan(44°)≈1.03 的九成，
    三层椭圆由外到内递深，边缘自然散开。 */
-var SHADOW_LEN = 0.74;
+var SHADOW_LEN = 0.62;
 
 /* 阴影相机跟着玩家走：总览要罩住整个群岛（±8.6），近景其实只需要一座岛（±2.7）。
    覆盖范围缩 3 倍，同尺寸贴图的有效分辨率就高 3 倍 —— 近景地面那些条纹状
@@ -1452,7 +1453,7 @@ function scatterIsle(shape, cfg, grp, rnd){
     var gi = Math.floor(rnd()*buckets[kind].length);
     buckets[kind][gi].push({x:x, y:y, z:z, rot:(opt.rot !== undefined ? opt.rot : rnd()*TAU), s:s});
     occupy(x, z, rad);
-    if(opt.shadow !== false) shadows.push({x:x, z:z, r:(opt.sr||0.030)*s, h:(opt.hh||0.10)*s});
+    if((opt.hh||0.10)*s >= 0.18) shadows.push({x:x, z:z, r:(opt.sr||0.030)*s, h:(opt.hh||0.10)*s});
     return true;
   }
 
@@ -1645,7 +1646,7 @@ function buildShadows(specs, grp, cfg){
   var ca = Math.cos(ang), sa = Math.sin(ang);
   /* 三层由外到内递深：单一椭圆会读成一块贴纸；层间尺寸差太大又会糊成一片污渍，
      所以外圈只比中圈大 25%，靠不透明度叠出柔边 */
-  var LAYERS = [{k:1.00, op:0.32},{k:0.74, op:0.36},{k:0.47, op:0.40}];
+  var LAYERS = [{k:1.00, op:0.26},{k:0.62, op:0.32}];
   for(var L=0;L<LAYERS.length;L++){
     var pos=[], col=[], idx=[], base=0;
     for(var i=0;i<specs.length;i++){
