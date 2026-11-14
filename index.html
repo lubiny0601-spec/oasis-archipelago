@@ -579,11 +579,13 @@ function setKeyDir(dir){
    四种轮廓各自拉开（阔叶=团、樱=伞、松=塔、棕榈=羽），全岛共用一套三档色阶。 */
 
 /* 树色板：同一色相家族取暗/中/亮三档，色差交给光照，不再靠随机换绿 */
-var FOL_D='#3a7a42', FOL_M='#4a9a4e', FOL_L='#66b65a';   // 阔叶
-var PIN_D='#26573d', PIN_M='#32754b', PIN_L='#429056';   // 针叶（偏冷偏深）
-var CHR_D='#d4859f', CHR_M='#e9a8bd', CHR_L='#f9cddb';   // 樱（原色过浅，被主光打到发白）
-var PLM_D='#2b7040', PLM_M='#3b8f45', PLM_L='#54aa4d';   // 棕榈
-var BSH_D='#357a3e', BSH_M='#48994c', BSH_L='#6cb95e';   // 灌木
+/* 亮档是主光直射面，ACES(0.95/1.16) 提完还要落在「比草地深」的区间 ——
+   亮档一旦和草地同明度，树冠就融进背景没有层次（2026-11-14 老大反馈发白） */
+var FOL_D='#2e6638', FOL_M='#3f8c44', FOL_L='#57a34b';   // 阔叶
+var PIN_D='#1f4c34', PIN_M='#2b6b43', PIN_L='#39824d';   // 针叶（偏冷偏深）
+var CHR_D='#a8436a', CHR_M='#c25f87', CHR_L='#d97fa0';   // 樱（原 #f9cddb 近白，整体压深两档）
+var PLM_D='#235c35', PLM_M='#327c3d', PLM_L='#469744';   // 棕榈
+var BSH_D='#2b6835', BSH_M='#3c8842', BSH_L='#55a150';   // 灌木
 
 /* ico 球：低模树冠的正确基元。三角形接近等边，没有球的极点收束 */
 function icoG(rad, det){ return new THREE.IcosahedronGeometry(rad, det===undefined?1:det); }
