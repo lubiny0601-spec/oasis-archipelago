@@ -1425,6 +1425,8 @@ var LANDMARK_GEO = {
 
 /* 每座岛的气质由这张配比表决定：松多的森严、樱多的绚烂、石多的荒芜 */
 var TREE_MESHES = [];                    // 只给 ?noveg=1 用
+var NOVEG_ON = /[?&]noveg=1/.test(location.search);
+var TREE_KINDS = {pine:1, broad:1, cherry:1, palm:1};
 function scatterIsle(shape, cfg, grp, rnd){
   var buckets = {};
   for(var k2 in GEO){
@@ -1455,7 +1457,8 @@ function scatterIsle(shape, cfg, grp, rnd){
     var gi = Math.floor(rnd()*buckets[kind].length);
     buckets[kind][gi].push({x:x, y:y, z:z, rot:(opt.rot !== undefined ? opt.rot : rnd()*TAU), s:s});
     occupy(x, z, rad);
-    if((opt.hh||0.10)*s >= 0.24) shadows.push({x:x, z:z, r:(opt.sr||0.030)*s, h:(opt.hh||0.10)*s});
+    /* noveg 藏树时树影必须跟着藏，否则草地上一圈孤儿影子 */
+    if((opt.hh||0.10)*s >= 0.24 && !(NOVEG_ON && TREE_KINDS[kind])) shadows.push({x:x, z:z, r:(opt.sr||0.030)*s, h:(opt.hh||0.10)*s});
     return true;
   }
 
@@ -2407,65 +2410,71 @@ var LAND_HOLD = (function(){
 var landSeq = null, landHarbor = null;
 var walker = null, legL = null, legR = null, armL = null, armR = null;
 
-/* 低模小人：大衣/围巾/头/脸/背包/斜挎带合成 1 个 mesh，两条腿和两条胳膊各自挂 pivot 摆动。
+/* 低模小人 v2：手绘设定稿（#053 欧洲清线冒险人物）转译 —— 宽檐探险帽/蓝衬衫/
+   棕短裤白袜棕靴/卡其背包/胸前斜挎带/橙棕刘海/腮红。躯干+头+帽+包合成 1 个 mesh，
+   两条腿和两条胳膊各自挂 pivot 摆动。
    用 PAINT（共享材质）→ 夜色自动跟随；不进 allLand/allLm，不参与拾取。
-   尺度基准：1.0 时身高约 0.09 世界单位，仅到低矮树丛的高度 —— 别放大成巨人。
-   正面 = 本地 +Z（walk 里用 rotation.y = atan2(dx,dz)），所以眼睛/鼻子/嘴一律放 +Z 侧。 */
+   尺度基准：1.0 时身高约 0.10 世界单位，仅到低矮树丛的高度 —— 别放大成巨人。
+   正面 = 本地 +Z（walk 里用 rotation.y = atan2(dx,dz)），所以五官一律放 +Z 侧。 */
 (function buildWalker(){
   walker = new THREE.Group();
-  var SKIN = '#f2cfa8', HAIR = '#3b3129', INK = '#2b2622';
+  var SKIN = '#f0c9a2', HAIR = '#a5652c', INK = '#2b2622';
   var body = new THREE.Mesh(mergeParts([
-    {g:new THREE.CylinderGeometry(0.0095,0.0130,0.036,7),  m:M(0,0.050,0),        c:'#37628a'},   /* 大衣躯干 */
-    {g:new THREE.CylinderGeometry(0.0130,0.0142,0.008,7),  m:M(0,0.0315,0),       c:'#2c5174'},   /* 大衣下摆 */
-    {g:new THREE.CylinderGeometry(0.0102,0.0102,0.006,7),  m:M(0,0.0685,0),       c:'#c8703c'},   /* 围巾 */
-    {g:new THREE.BoxGeometry(0.0058,0.0130,0.0030),
-       m:M(-0.0078,0.0618,-0.0090, 0.20,0,0.10), c:'#b3612f'},                                /* 围巾垂尾 */
-    {g:new THREE.SphereGeometry(0.0105,8,6),               m:M(0,0.0815,0),       c:SKIN},        /* 头 */
-    /* 头发要抬到眼睛上方：原来 thetaLength=0.52π，下沿落在 y=0.0833，
-       正好把眼睛的位置盖住 —— 脸是最后加的，一加才发现被头发挡上了 */
-    {g:new THREE.SphereGeometry(0.0108,8,5,0,TAU,0,Math.PI*0.47),
-                                                           m:M(0,0.0862,0),       c:HAIR},        /* 头发 */
-    {g:new THREE.BoxGeometry(0.0136,0.0038,0.0034),
-       m:M(0,0.0888,0.0068, -0.34,0,0), c:HAIR},                                             /* 刘海 */
-    /* 五官：都用 ico 低模球，块面和全身一致；半径按「近景 40~50px 头宽」反推，
-       小于 0.0015 在漫游机位下就只剩一个像素，等于没加 */
-    {g:icoG(0.0019,0), m:M(-0.0036,0.0822,0.0090), c:INK},                                   /* 左眼 */
-    {g:icoG(0.0019,0), m:M( 0.0036,0.0822,0.0090), c:INK},                                   /* 右眼 */
-    {g:icoG(0.0016,0), m:M(0,0.0794,0.0100), c:'#e2ba96'},                                   /* 鼻子 */
-    {g:new THREE.BoxGeometry(0.0042,0.0012,0.0014),
-       m:M(0,0.0768,0.0092), c:'#c07f6b'},                                                   /* 嘴 */
-    {g:new THREE.BoxGeometry(0.0105,0.0135,0.0058),        m:M(0,0.051,-0.0122),  c:'#b06538'},   /* 背包 */
-    {g:new THREE.BoxGeometry(0.0035,0.020,0.0022),         m:M(0,0.052,0.0100, 0,0,-0.42), c:'#54483c'}  /* 斜挎带 */
+    {g:new THREE.CylinderGeometry(0.0098,0.0122,0.030,7),  m:M(0,0.055,0),        c:'#3a6f9e'},   /* 蓝衬衫躯干 */
+    {g:new THREE.CylinderGeometry(0.0118,0.0124,0.005,7),  m:M(0,0.0425,0),       c:'#33608c'},   /* 衬衫下摆 */
+    {g:new THREE.CylinderGeometry(0.0112,0.0122,0.013,7),  m:M(0,0.0335,0),       c:'#7d5433'},   /* 棕短裤 */
+    {g:new THREE.CylinderGeometry(0.0126,0.0126,0.0032,7), m:M(0,0.0455,0),       c:'#4a3320'},   /* 腰带 */
+    {g:icoG(0.0014,0),                                     m:M(0,0.0455,0.0120),  c:'#d8b25f'},   /* 皮带扣 */
+    {g:new THREE.BoxGeometry(0.0042,0.024,0.0022),
+       m:M(0,0.052,0.0108, 0,0,0.60), c:'#6e5433'},                                            /* 胸前斜挎带 */
+    {g:new THREE.SphereGeometry(0.0112,8,6),               m:M(0,0.0835,0),       c:SKIN},        /* 头 */
+    /* 头发只露帽檐下一条橙色刘海：半球下沿抬高，别盖住眼睛 */
+    {g:new THREE.SphereGeometry(0.0115,8,5,0,TAU,0,Math.PI*0.40),
+                                                           m:M(0,0.0872,0),       c:HAIR},        /* 头发 */
+    {g:new THREE.BoxGeometry(0.0142,0.0042,0.0036),
+       m:M(0,0.0900,0.0062, -0.30,0,0), c:HAIR},                                             /* 刘海 */
+    /* 五官：ico 低模球，块面和全身一致 */
+    {g:icoG(0.0019,0), m:M(-0.0038,0.0842,0.0094), c:INK},                                   /* 左眼 */
+    {g:icoG(0.0019,0), m:M( 0.0038,0.0842,0.0094), c:INK},                                   /* 右眼 */
+    {g:icoG(0.0016,0), m:M(0,0.0812,0.0104), c:'#e0b28c'},                                   /* 鼻子 */
+    {g:new THREE.BoxGeometry(0.0044,0.0012,0.0014),
+       m:M(0,0.0786,0.0096), c:'#c07f6b'},                                                   /* 嘴 */
+    {g:icoG(0.0013,0), m:M(-0.0068,0.0818,0.0082), c:'#eda88f'},                             /* 腮红 */
+    {g:icoG(0.0013,0), m:M( 0.0068,0.0818,0.0082), c:'#eda88f'},
+    /* 宽檐探险帽：实心檐盘罩住发际，帽冠+深色帽带 */
+    {g:new THREE.CylinderGeometry(0.0158,0.0165,0.0026,9), m:M(0,0.0922,0),       c:'#c2a469'},   /* 帽檐 */
+    {g:new THREE.CylinderGeometry(0.0088,0.0098,0.0070,8), m:M(0,0.0968,0),       c:'#c2a469'},   /* 帽冠 */
+    {g:new THREE.CylinderGeometry(0.0099,0.0100,0.0022,8), m:M(0,0.0940,0),       c:'#8f7448'},   /* 帽带 */
+    /* 卡其帆布背包：包盖压深一档读出层次 */
+    {g:new THREE.BoxGeometry(0.0110,0.0130,0.0060),        m:M(0,0.054,-0.0126),  c:'#a98d55'},   /* 背包 */
+    {g:new THREE.BoxGeometry(0.0116,0.0046,0.0066),        m:M(0,0.0585,-0.0126), c:'#8f7448'},   /* 包盖 */
+    {g:new THREE.BoxGeometry(0.0028,0.020,0.0020),         m:M(0,0.055,-0.0096),  c:'#6e5433'}    /* 背带 */
   ]), PAINT);
   walker.add(body);
-  /* 腿：裤子+鞋头分色，pivot 挪到髋部 */
+  /* 腿：裸腿+白袜+棕靴分色，pivot 挪到髋部（最低点 -0.0251 与 v1 完全一致，落地不变） */
   var legGeo = mergeParts([
-    {g:new THREE.BoxGeometry(0.0058,0.0195,0.0072), m:M(0,-0.0098,0),        c:'#2e3a48'},
-    {g:new THREE.BoxGeometry(0.0062,0.0058,0.0086), m:M(0,-0.0222,0.0009),   c:'#3b3129'}
+    {g:new THREE.CylinderGeometry(0.0034,0.0031,0.0160,6), m:M(0,-0.0080,0),      c:SKIN},
+    {g:new THREE.CylinderGeometry(0.0034,0.0033,0.0030,6), m:M(0,-0.0173,0),      c:'#e8e4d8'},
+    {g:new THREE.BoxGeometry(0.0068,0.0050,0.0092),        m:M(0,-0.0226,0.0010), c:'#5f4026'},
+    {g:new THREE.BoxGeometry(0.0072,0.0024,0.0032),        m:M(0,-0.0242,0.0032), c:'#5f4026'}
   ]);
   legL = new THREE.Mesh(legGeo, PAINT);
   legR = new THREE.Mesh(legGeo.clone(), PAINT);
-  /* 两条腿必须左右分开（±x）。原来写成 ±z，从正面看就是一前一后叠在一起，
-     整个人只剩一根柱子 —— 腿都摆动了，正面还不知道有两条腿 */
   legL.position.set(-0.0036,0.0298,0);
   legR.position.set( 0.0036,0.0298,0);
   walker.add(legL, legR);
-  /* 胳膊：必须单独挂 pivot 才能摆。袖口 + 手分色 —— 原来是一根秃棍，
-     近景整个人就「没有末端」，看着像截木头桩子。
-     rotation.z 的符号决定手是往里收还是往外张：Rz(θ) 把 -Y 转到 (sinθ,-cosθ)，
-     所以左臂要负角、右臂要正角，手才会甩到衣身外面来。 */
+  /* 胳膊：短袖 —— 上臂蓝布、前臂裸露、手是skin球。pivot 挂肩头，
+     rotation.z 符号决定手往里收还是往外张（左负右正才甩到衣身外）。 */
   var armGeo = mergeParts([
-    /* 肩头补一颗球：圆柱的顶盖是平的，直接接到衣身上会在肩膀处
-       切出一道硬边，远看像挂了两个「翅膀」或口袋 */
-    {g:icoG(0.0037,0),                                     m:M(0,0.0004,0), c:'#37628a'},
-    {g:new THREE.CylinderGeometry(0.0036,0.0032,0.0155,5), m:M(0,-0.0078,0), c:'#37628a'},   /* 袖子 */
-    {g:new THREE.CylinderGeometry(0.0033,0.0033,0.0022,5), m:M(0,-0.0166,0), c:'#2c5174'},   /* 袖口 */
-    {g:icoG(0.0031,0),                                     m:M(0,-0.0198,0), c:SKIN}         /* 手 */
+    {g:icoG(0.0037,0),                                     m:M(0,0.0004,0),  c:'#3a6f9e'},
+    {g:new THREE.CylinderGeometry(0.0036,0.0033,0.0075,5), m:M(0,-0.0045,0), c:'#3a6f9e'},
+    {g:new THREE.CylinderGeometry(0.0030,0.0028,0.0075,5), m:M(0,-0.0115,0), c:SKIN},
+    {g:icoG(0.0031,0),                                     m:M(0,-0.0175,0), c:SKIN}
   ]);
   armL = new THREE.Mesh(armGeo, PAINT);
   armR = new THREE.Mesh(armGeo.clone(), PAINT);
-  armL.position.set(-0.0118,0.0608,0); armL.rotation.z = -0.10;
-  armR.position.set( 0.0118,0.0608,0); armR.rotation.z =  0.10;
+  armL.position.set(-0.0124,0.0608,0); armL.rotation.z = -0.17;
+  armR.position.set( 0.0124,0.0608,0); armR.rotation.z =  0.17;
   walker.add(armL, armR);
   walker.visible = false;
   scene.add(walker);
@@ -4078,7 +4087,7 @@ if(HERO){
 })();
 
 /* ?noveg=1 把树全部收掉：给小人 / 地标出特写时，树冠会把主体整个罩住 */
-if(/[?&]noveg=1/.test(location.search))
+if(NOVEG_ON)
   for(var nv=0; nv<TREE_MESHES.length; nv++) TREE_MESHES[nv].visible = false;
 
 requestAnimationFrame(function(){ animate(); });
