@@ -3175,8 +3175,13 @@ function startVoyage(toIs){
   var fromIs=walkIsle, hbf=harborOf(fromIs);
   if(!hbf) return;
   var curve=landingPath(fromIs).curve;
-  var boardPt=curve.getPoint(0.5);
-  if(Math.hypot(walker.position.x-boardPt.x, walker.position.z-boardPt.z)>0.30) return;
+  /* 登船距离门必须与乘船条触发同源（_boardPt）。原来检查的是 curve u=0.5，
+     但那点在凹湾岛（torii 西侧 Rat≈0.75）落在海岸线外的海面上，
+     距可站区域 0.63 —— 乘船条明明弹着，点上去却永远静默失效。
+     lookout/houseWood 的码头方向也有轻度同病。防瞬移语义不变：
+     乘船条只有 bd<0.20 才显示，点 chip 时必然 ≤0.30。 */
+  var bp=fromIs._boardPt || curve.getPoint(0.5);
+  if(Math.hypot(walker.position.x-bp.x, walker.position.z-bp.z)>0.30) return;
   var pts=sailPath(fromIs, toIs);
   if(pts.length<4) return;
   var lut=polylineLUT(pts);
