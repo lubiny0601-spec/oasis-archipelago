@@ -380,6 +380,114 @@ html.snap .loader{display:none!important}
 .brand{opacity:0;transition:opacity 1.1s ease .30s}
 html.in .brand{opacity:1}
 html.snap .brand{transition:none!important;opacity:1}
+
+/* ==========================================================================
+   P6 · 寻印 —— 七岛各藏一枚印记，走遍才集齐
+   --------------------------------------------------------------------------
+   前三轮把世界做美了，但「能做什么」只有走路和看卡：走完七座岛就没事干了。
+   这里补一层最轻的玩法循环 —— 目标（找）、反馈（盖印）、回报（集齐点灯）。
+   UI 沿用 P4 的纸片语言：印记册是一片小纸，格子是七个方印；集齐卡「七印合一」。
+   ========================================================================== */
+.sealbox{
+  position:absolute;right:16px;top:calc(14px + env(safe-area-inset-top));z-index:6;
+  padding:7px 11px 9px;pointer-events:none;user-select:none;
+  background:linear-gradient(160deg,#f9f2dc 0%,#ebdfc0 100%);
+  border:1px solid rgba(30,64,52,.24);border-radius:9px;
+  box-shadow:0 2px 0 rgba(30,64,52,.15), 0 7px 16px rgba(20,52,44,.13);
+  transition:opacity .6s ease, background .6s ease, border-color .6s ease}
+.sb-h{display:flex;align-items:baseline;gap:4px;font-size:10px;font-weight:800;
+  letter-spacing:1.6px;color:#1e4038;opacity:.86}
+.sb-h b{font-size:13px;letter-spacing:0;color:#a83a24;font-family:Georgia,"Songti SC",serif}
+.sb-h i{font-style:normal;font-size:9.5px;opacity:.55;letter-spacing:.5px}
+.sb-d{display:flex;gap:5px;margin-top:6px}
+/* 方角小格 = 印泥盒里的七个印位；集齐的翻成朱砂 */
+.sb-d i{width:11px;height:11px;border-radius:3px;display:block;
+  border:1px solid rgba(30,64,52,.32);background:rgba(255,255,255,.30);
+  transition:background .45s ease, border-color .45s ease, box-shadow .45s ease, transform .45s cubic-bezier(.34,1.4,.64,1)}
+.sb-d i.on{background:#c0472f;border-color:#a83a24;transform:rotate(-7deg) scale(1.08);
+  box-shadow:0 1px 0 rgba(120,40,24,.30)}
+
+/* 寻获提示：从上方落下来的一张纸条 */
+.sealtoast{
+  position:absolute;left:50%;top:calc(74px + env(safe-area-inset-top));z-index:7;
+  transform:translate(-50%,-10px);opacity:0;pointer-events:none;
+  padding:7px 15px 8px;white-space:nowrap;
+  background:linear-gradient(160deg,#f9f2dc 0%,#ebdfc0 100%);
+  border:1px solid rgba(30,64,52,.26);border-radius:8px;
+  box-shadow:0 2px 0 rgba(30,64,52,.18), 0 9px 20px rgba(20,52,44,.17);
+  font-size:11.5px;font-weight:800;letter-spacing:1.2px;color:#8f3322;
+  transition:opacity .34s ease, transform .34s cubic-bezier(.2,1.1,.4,1)}
+.sealtoast.on{opacity:1;transform:translate(-50%,0)}
+.sealtoast em{font-style:normal;font-family:Georgia,"Songti SC",serif;
+  font-size:15px;margin:0 5px 0 3px;color:#b8402c}
+.sealtoast s{text-decoration:none;opacity:.55;font-weight:700;margin-left:7px;letter-spacing:.4px}
+
+/* 集齐卡：七印合一 */
+.seal-done{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(10,28,24,.34);opacity:0;pointer-events:none;
+  transition:opacity .5s ease}
+.seal-done.on{opacity:1;pointer-events:auto}
+.sd-in{width:min(370px,88vw);padding:26px 26px 20px;text-align:center;
+  background:linear-gradient(165deg,#f9f2dc 0%,#e8dab7 100%);
+  border:1px solid rgba(30,64,52,.30);border-radius:12px;
+  box-shadow:0 3px 0 rgba(30,64,52,.22), 0 24px 54px rgba(10,28,24,.40);
+  transform:translateY(14px) scale(.96);
+  transition:transform .55s cubic-bezier(.2,1.1,.4,1)}
+.seal-done.on .sd-in{transform:none}
+.sd-in .k{font-size:9.5px;font-weight:800;letter-spacing:3px;color:rgba(30,64,52,.55)}
+.sd-in h2{margin:9px 0 3px;font-family:Georgia,"Songti SC","Noto Serif SC",serif;
+  font-size:26px;font-weight:700;letter-spacing:7px;text-indent:7px;color:#17352c}
+.sd-chars{display:flex;justify-content:center;gap:6px;margin:15px 0 13px}
+.sd-chars span{width:26px;height:26px;line-height:24px;border-radius:4px;
+  font-family:Georgia,"Songti SC",serif;font-size:15px;color:#fdf6e6;background:#c0472f;
+  border:1px solid #a83a24;box-shadow:0 1px 0 rgba(120,40,24,.3);
+  transform:rotate(-3deg)}
+.sd-chars span:nth-child(even){transform:rotate(4deg)}
+.sd-in p{margin:0;font-size:11.5px;line-height:1.75;color:rgba(23,53,44,.72)}
+.sd-in .sd-btns{display:flex;gap:9px;justify-content:center;margin-top:18px}
+.sd-in button{font:inherit;font-size:12px;font-weight:700;letter-spacing:.6px;cursor:pointer;
+  padding:9px 18px;border-radius:8px;border:1px solid rgba(30,64,52,.26);
+  background:rgba(255,255,255,.5);color:#1e4038;
+  box-shadow:0 2px 0 rgba(30,64,52,.14);transition:transform .12s ease}
+.sd-in button:active{transform:translateY(1px)}
+.sd-in button.pri{background:#2a6353;border-color:#22503f;color:#f6f0dc;
+  box-shadow:0 2px 0 rgba(20,54,44,.45)}
+
+/* 夜间：纸片换深墨蓝，跟 P4 的夜间语言一致 */
+.stage.night .sealbox{background:linear-gradient(160deg,rgba(30,48,74,.94),rgba(20,34,56,.94));
+  border-color:rgba(150,186,232,.24);box-shadow:0 2px 0 rgba(4,12,24,.5),0 7px 18px rgba(2,8,20,.45)}
+.stage.night .sb-h{color:rgba(214,232,255,.90)}
+.stage.night .sb-h b{color:#ff9f7e}
+.stage.night .sb-d i{border-color:rgba(150,186,232,.34);background:rgba(255,255,255,.10)}
+.stage.night .sb-d i.on{background:#d4583a;border-color:#b84227}
+.stage.night .sealtoast{background:linear-gradient(160deg,rgba(30,48,74,.95),rgba(20,34,56,.95));
+  border-color:rgba(150,186,232,.26);color:#ffb59a;
+  box-shadow:0 2px 0 rgba(4,12,24,.5),0 9px 22px rgba(2,8,20,.5)}
+.stage.night .sealtoast em{color:#ff9f7e}
+.stage.night .sd-in{background:linear-gradient(165deg,#22324e 0%,#182539 100%);
+  border-color:rgba(150,186,232,.28)}
+.stage.night .sd-in .k{color:rgba(186,208,240,.55)}
+.stage.night .sd-in h2{color:#eaf2ff}
+.stage.night .sd-in p{color:rgba(214,230,255,.72)}
+.stage.night .sd-in button{background:rgba(255,255,255,.12);color:#e6efff;
+  border-color:rgba(150,186,232,.28)}
+
+/* 海报模式：印记 UI 全收 */
+html.hero .sealbox, html.hero .sealtoast, html.hero .seal-done{display:none!important}
+
+/* 已盖印的岛：岛名标签前面多一个小朱砂方块 */
+.lab.done::before{content:'';display:inline-block;width:6px;height:6px;border-radius:1.5px;
+  background:#c0472f;margin-right:5px;vertical-align:1px;transform:rotate(-8deg)}
+.stage.night .lab.done::before{background:#d4583a}
+
+@media (max-width:620px){
+  .sealbox{right:12px;padding:6px 9px 8px}
+  .sb-d{gap:4px}
+  .sb-d i{width:10px;height:10px}
+  .sealtoast{font-size:11px;padding:6px 12px 7px;top:calc(66px + env(safe-area-inset-top))}
+  .sd-in{padding:22px 20px 18px}
+  .sd-in h2{font-size:23px;letter-spacing:6px;text-indent:6px}
+}
 </style>
 </head>
 <body>
@@ -399,6 +507,23 @@ html.snap .brand{transition:none!important;opacity:1}
       <div class="moon"></div>
     </div>
     <div class="labels" id="labels"></div>
+    <div class="sealbox" id="sealbox" aria-hidden="true">
+      <div class="sb-h"><span>印记</span><b id="sealN">0</b><i>/7</i></div>
+      <div class="sb-d" id="sealDots"></div>
+    </div>
+    <div class="sealtoast" id="sealtoast"></div>
+    <div class="seal-done" id="sealDone">
+      <div class="sd-in">
+        <div class="k">ARCHIPELAGO · 07 SEALS</div>
+        <h2>七印合一</h2>
+        <div class="sd-chars" id="sdChars"></div>
+        <p>七座岛走遍，七枚印集齐。<br>群岛为你点灯。</p>
+        <div class="sd-btns">
+          <button type="button" id="sdNight" class="pri">点灯</button>
+          <button type="button" id="sdClose">继续走</button>
+        </div>
+      </div>
+    </div>
     <div class="float brand"><div class="k" id="bK">ARCHIPELAGO · 07 ISLES</div><h1 id="bH">群岛</h1></div>
     <div class="float hint" id="hint"><b>拖动</b>转 · <b>点岛</b>上岸 · <b>双指</b>缩放</div>
     <div id="joy"><div id="joyKnob"></div></div>
@@ -426,6 +551,7 @@ html.snap .brand{transition:none!important;opacity:1}
     <button id="spin" class="on">自动旋转</button>
     <button id="light">夜晚</button>
     <button id="reset" class="act">重置视角</button>
+    <button id="snd" class="on">声音</button>
   </div>
 </div>
 
@@ -1610,6 +1736,12 @@ var TREE_MESHES = [];                    // 只给 ?noveg=1 用
 var NOVEG_ON = /[?&]noveg=1/.test(location.search);
 var TREE_KINDS = {pine:1, broad:1, cherry:1, palm:1};
 function scatterIsle(shape, cfg, grp, rnd){
+  /* 先定印记落点：put() 要靠它避开这一小圈空地 */
+  SEAL_AVOID = null;
+  if(SEAL_ON){
+    SEAL_AVOID = sealSpotLocal(shape, cfg, mulberry32(cfg.seed*7919 + 131));
+    SEAL_LOC[cfg.id] = SEAL_AVOID;
+  }
   var buckets = {};
   for(var k2 in GEO){
     buckets[k2] = [];
@@ -1632,6 +1764,10 @@ function scatterIsle(shape, cfg, grp, rnd){
 
   function put(kind, x, z, s, opt){
     opt = opt || {};
+    /* 寻印：印记周围留一小块空地。不是装饰 —— 树冠会把 0.07 高的印章整个罩住，
+       走近也只看得到叶子，那这枚印就等于没了。半径按树冠算（冠幅 0.05 级 +
+       38° 俯视下的投影），0.105 只能挡住树干，冠幅照样压在印上 */
+    if(SEAL_AVOID && Math.hypot(x - SEAL_AVOID.lx, z - SEAL_AVOID.lz) < 0.22) return false;
     var y = topY(shape, cfg, x, z);
     if(y === null) return false;
     var rad = (opt.gap || 0.05);
@@ -2117,6 +2253,15 @@ var NAME_BY_KIND = {
   pavilion:'凉亭', lookout:'瞭望塔'
 };
 
+/* ---- 寻印（P6）的开关与落点必须在建岛前就绪 ----
+   scatterIsle 里要靠 SEAL_AVOID 给印记留空地，而建岛发生在本文后面的
+   forEach 里，所以这几个变量不能等到 P6 那段才声明（var 提升只是 undefined）。 */
+var SEAL_ON = !/[?&]noseal=1/.test(location.search);
+var SEAL_CH = {gate:'门', houseBlue:'蓝', windmill:'风', lookout:'望',
+               houseWood:'木', pavilion:'亭', torii:'鸟'};
+var SEAL_LOC = {};      /* islandId -> {lx,lz} 局部坐标 */
+var SEAL_AVOID = null;  /* scatterIsle 期间临时指向当前岛的落点 */
+
 /* ============ 群岛配置 ============
    每座岛:位置、轮廓种子、比例、山头、草地色、植被配比、地标
    气质差异全在这张表里 —— 同一套生成器，长出七种气候 */
@@ -2280,6 +2425,301 @@ ISLES_CFG.forEach(function(cfg, idx){
   isles.push({cfg:cfg, shape:shape, grp:grp, x:cfg.x, z:cfg.z, lm:lm, dot:dot, lab:lab,
               foamIn:foamIn, foamOut:foamOut, lx:lx, lz:lz, ly:ly});
 });
+
+/* ============ P6 · 寻印 ============
+   前几轮把世界做美了，但「能做什么」只有走路和看卡：七座岛走完就没事干了。
+   这里补一层最轻的玩法循环 —— 目标（找）、反馈（盖印）、回报（集齐点灯）。
+   印做成手绘地图上的章：米纸底 + 朱砂双框 + 一个字，跟 P4 的纸片 UI 同源；
+   走近自动盖，不弹卡不挡视线，只落一张纸条 + 一记轻响。
+   位置由 cfg.seed 派生（确定性，不受帧率影响），避开地标 0.30；
+   scatterIsle 会据 SEAL_LOC 在印记四周留出一小圈空地。
+   ?noseal=1 整体关掉 —— 出图回归多一个物件会让 RMS 变化。 */
+var seals = [], sealById = {}, sealGot = 0;
+
+function rrectPath(c, x, y, w, h, r){
+  c.beginPath();
+  c.moveTo(x+r, y);
+  c.lineTo(x+w-r, y); c.quadraticCurveTo(x+w, y, x+w, y+r);
+  c.lineTo(x+w, y+h-r); c.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  c.lineTo(x+r, y+h); c.quadraticCurveTo(x, y+h, x, y+h-r);
+  c.lineTo(x, y+r); c.quadraticCurveTo(x, y, x+r, y);
+  c.closePath();
+}
+function makeSealTex(ch){
+  var S = 128, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  var c = cv.getContext('2d');
+  /* 纸底用 UI 同一色温：纯白在绿草上会像一张塑料贴纸 */
+  c.fillStyle = 'rgba(250,243,224,0.95)';
+  rrectPath(c, 12, 12, S-24, S-24, 13); c.fill();
+  c.strokeStyle = 'rgba(30,64,52,0.20)'; c.lineWidth = 2;
+  rrectPath(c, 12.5, 12.5, S-25, S-25, 13); c.stroke();
+  /* 朱砂双框：外粗内细，缩到 20px 也还读得出「印章」 */
+  c.strokeStyle = '#b8402c';
+  c.lineWidth = 6; rrectPath(c, 21, 21, S-42, S-42, 7); c.stroke();
+  c.lineWidth = 1.6; rrectPath(c, 33, 33, S-66, S-66, 3); c.stroke();
+  c.fillStyle = '#b8402c';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = 'bold 50px Georgia, "Songti SC", "Noto Serif SC", serif';
+  c.fillText(ch, S/2, S/2 + 2);
+  var tex = new THREE.CanvasTexture(cv);
+  /* CanvasTexture 默认按线性空间处理，而渲染器输出是 sRGB —— 不标 encoding
+     的话朱砂 #b8402c 会被当成线性值再编码一次，出来是发白的珊瑚粉 */
+  tex.encoding = THREE.sRGBEncoding;
+  tex.anisotropy = 4;
+  return tex;
+}
+function makeGlowTex(){
+  var S = 128, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  var c = cv.getContext('2d');
+  var g = c.createRadialGradient(S/2, S/2, 0, S/2, S/2, S/2);
+  g.addColorStop(0,   'rgba(255,230,176,1)');
+  g.addColorStop(0.33,'rgba(255,205,136,0.52)');
+  g.addColorStop(0.70,'rgba(255,188,112,0.13)');
+  g.addColorStop(1,   'rgba(255,180,100,0)');
+  c.fillStyle = g; c.fillRect(0, 0, S, S);
+  return new THREE.CanvasTexture(cv);
+}
+var SEAL_GLOW_TEX = null, SEAL_PLANE = null;
+
+/* 落点：岛内偏外圈（归一化半径 0.40~0.74），离地标至少 0.30。
+   只依赖 shape/cfg —— 因为要在 scatterIsle 里就要算出来（留空地），
+   那时 island 记录还没建好，拿不到 is._boardPt。 */
+function sealSpotLocal(shape, cfg, rnd){
+  var lxw = cfg.landmark.u*shape.sx, lzw = cfg.landmark.v*shape.sz;
+  for(var i=0;i<90;i++){
+    var a = rnd()*TAU;
+    var rr = 0.40 + rnd()*0.34;
+    var rat = Rat(shape, a);
+    if(rat < 0.62) continue;                 /* 轮廓太窄的方向不落（凹湾） */
+    if(rr/rat > 0.76) continue;              /* 别贴海岸线 */
+    var lx = Math.cos(a)*rr*shape.sx, lz = Math.sin(a)*rr*shape.sz;
+    if(Math.hypot(lx-lxw, lz-lzw) < 0.30) continue;        /* 不跟地标弹卡打架 */
+    return {lx:lx, lz:lz};
+  }
+  return null;
+}
+
+function buildSeals(){
+  if(!SEAL_ON) return;
+  SEAL_GLOW_TEX = makeGlowTex();
+  SEAL_PLANE = new THREE.PlaneGeometry(1, 1);
+  for(var i=0;i<isles.length;i++){
+    var is = isles[i], cfg = is.cfg, ch = SEAL_CH[cfg.id];
+    if(!ch) continue;
+    var rnd = mulberry32(cfg.seed*7919 + 131);
+    /* 落点复用建岛时算好的那一份：scatterIsle 已按它清空了周围的植被，
+       这里再算一遍很容易因为随机数消耗量不同而错开 */
+    var spot = SEAL_LOC[cfg.id];
+    if(!spot) continue;
+    var wx = is.x + spot.lx, wz = is.z + spot.lz;
+    var wy = groundYAt(is, wx, wz);
+    /* 本体用 Sprite：永远正对相机，总览/漫游两种机位都读得出 */
+    var sp = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: makeSealTex(ch), transparent:true, depthWrite:false, opacity:0.94 }));
+    sp.scale.set(0.070, 0.070, 1);
+    sp.position.set(wx, wy + 0.085, wz);
+    sp.renderOrder = 13;
+    scene.add(sp);
+    /* 脚下光圈：贴地的加法光斑，比一盏点光便宜得多 */
+    var gl = new THREE.Mesh(SEAL_PLANE, new THREE.MeshBasicMaterial({
+      map: SEAL_GLOW_TEX, transparent:true, depthWrite:false,
+      blending: THREE.AdditiveBlending, opacity:0.5 }));
+    gl.rotation.x = -Math.PI/2;
+    gl.position.set(wx, wy + 0.007, wz);
+    gl.scale.set(0.17, 0.17, 1);
+    gl.renderOrder = 11;
+    scene.add(gl);
+    var rec = {is:is, ch:ch, x:wx, z:wz, y0:wy + 0.085, ph:rnd()*TAU,
+               sp:sp, gl:gl, got:false, ft:0};
+    seals.push(rec);
+    sealById[cfg.id] = rec;
+  }
+}
+
+/* ---- 音效：只有一记轻响，Web Audio 合成，不加载任何素材 ----
+   音量压在 0.08 级（比语音提示小声一半），听得到但不吵。
+   AudioContext 必须在用户手势里创建，所以挂在 pointerdown / keydown 上预热。 */
+var AC = null, SND_ON = true;
+function acGet(){
+  if(AC) return AC;
+  try{
+    var C = window.AudioContext || window.webkitAudioContext;
+    if(!C) return null;
+    AC = new C();
+  }catch(_e){ AC = null; }
+  return AC;
+}
+function sfxSeal(){
+  if(!SND_ON) return;
+  var ac = acGet();
+  if(!ac) return;
+  if(ac.state === 'suspended'){ try{ ac.resume(); }catch(_e){} }
+  var t0 = ac.currentTime;
+  /* 两个正弦叠成「叮」：1046.5 (C6) 主音 + 1568 (G6) 泛音 */
+  var parts = [[1046.5, 0.075], [1568.0, 0.042]];
+  for(var i=0;i<parts.length;i++){
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(parts[i][0], t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(parts[i][1], t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.52);
+    o.connect(g); g.connect(ac.destination);
+    o.start(t0); o.stop(t0 + 0.58);
+  }
+}
+
+/* ---- HUD ---- */
+var sealToastTimer = 0;
+function sealHUD(){
+  document.getElementById('sealN').textContent = sealGot;
+  var ds = document.getElementById('sealDots').children;
+  for(var i=0;i<ds.length;i++){
+    var s = sealById[ds[i].getAttribute('data-id')];
+    ds[i].className = (s && s.got) ? 'on' : '';
+  }
+  /* 岛名标签上也盖一枚小印：退回总览时一眼看出哪几座走过了 */
+  for(var j=0;j<isles.length;j++){
+    var s2 = sealById[isles[j].cfg.id];
+    if(s2 && s2.got) isles[j].lab.classList.add('done');
+  }
+}
+function sealToast(ch, n){
+  var el = document.getElementById('sealtoast');
+  el.innerHTML = '寻获 <em>' + ch + '</em> 字印<s>' + n + ' / ' + seals.length + '</s>';
+  el.classList.add('on');
+  clearTimeout(sealToastTimer);
+  sealToastTimer = setTimeout(function(){ el.classList.remove('on'); }, 2100);
+}
+function sealDoneCard(){
+  /* 停掉自转：卡片后面还在转的岛群会把注意力扯走 */
+  autoSpin = false;
+  document.getElementById('spin').classList.remove('on');
+  var h = '';
+  for(var i=0;i<ISLES_CFG.length;i++) h += '<span>' + SEAL_CH[ISLES_CFG[i].id] + '</span>';
+  document.getElementById('sdChars').innerHTML = h;
+  document.getElementById('sealDone').classList.add('on');
+}
+function takeSeal(s){
+  if(s.got) return;
+  s.got = true; s.ft = 0;
+  sealGot++;
+  sfxSeal();
+  sealToast(s.ch, sealGot);
+  sealHUD();
+  if(sealGot >= seals.length) setTimeout(sealDoneCard, 950);
+}
+
+/* ---- 每帧：悬浮呼吸 / 靠近变亮 / 盖印后飞散 ---- */
+var _sv = new THREE.Vector3();
+function stepSeals(t, dt){
+  if(!seals.length) return;
+  for(var i=0;i<seals.length;i++){
+    var s = seals[i];
+    if(s.got){
+      if(s.ft >= 1){ continue; }
+      s.ft = Math.min(1, s.ft + dt*1.7);
+      var k = s.ft, e = 1 - Math.pow(1-k, 3);
+      s.sp.position.y = s.y0 + e*0.26;
+      s.sp.scale.setScalar(0.070*(1 + e*0.75));
+      s.sp.material.opacity = 0.94*(1 - Math.pow(k, 1.5));
+      s.gl.scale.setScalar(0.17*(1 + e*2.4));
+      s.gl.material.opacity = 0.5*(1 - k);
+      if(s.ft >= 1){ s.sp.visible = false; s.gl.visible = false; }
+      continue;
+    }
+    /* 悬浮：印章自己轻轻浮一下，静止的贴纸看着像 bug */
+    s.sp.position.y = s.y0 + Math.sin(t*1.45 + s.ph)*0.0075;
+    s.sp.material.rotation = Math.sin(t*0.85 + s.ph)*0.055;
+    /* 靠近时脚下光圈明显亮起来 —— 这是唯一的「提示」，不用箭头不用小地图。
+       范围给到 1.30（几乎整座岛）：印章压在树冠底下时，只有走近才「透出来」，
+       但玩家得先知道往哪走。在岛上就能看到树隙间一点朱砂，才叫藏而不失 */
+    var near = 0;
+    if(walkOn && walkIsle === s.is){
+      var dd = Math.hypot(walker.position.x - s.x, walker.position.z - s.z);
+      near = Math.max(0, 1 - dd/1.30);
+    }
+    var base = nightOn ? 0.62 : 0.40;
+    s.gl.material.opacity = base + near*0.42 + Math.sin(t*2.3 + s.ph)*0.055;
+    s.gl.scale.setScalar(0.17*(1 + Math.sin(t*2.3 + s.ph)*0.07 + near*0.16));
+    s.sp.material.opacity = (nightOn ? 1.0 : 0.94);
+    /* 走近后取消深度测试：印章落点可能正好在树冠底下，透出来才找得到。
+       只对当前这一枚生效，没上岛时照旧被枝叶遮挡，不破坏空间感。 */
+    s.sp.material.depthTest = (near <= 0.02);
+  }
+}
+
+/* ============ 海鸟：天空不能是空的 ============
+   九只绕岛盘旋，用 InstancedMesh 打包（18 个实例 = 1 次绘制）。
+   翼用单个三角，右翼 = 左翼绕 Y 转 180° —— 这样同一个拍动角左右自动对称，
+   不用镜像缩放（镜像会把法线翻掉）。
+   夜里有星有月，鸟收掉（opacity → 0 且 visible=false 省掉整批绘制）。 */
+var BIRD_ON = !/[?&]nobird=1/.test(location.search);
+var BIRDS = null;
+function buildBirds(){
+  if(!BIRD_ON) return;
+  var N = 9;
+  var wing = new THREE.BufferGeometry();
+  /* 肩(0,0,0) → 翼尖(+X, 略后掠) → 内侧后缘 */
+  wing.setAttribute('position', new THREE.Float32BufferAttribute([
+    0, 0, 0,     0.130, 0.007, 0.035,     0.031, 0, -0.052
+  ], 3));
+  wing.computeVertexNormals();
+  var mat = new THREE.MeshBasicMaterial({ color:0xeef4f2, transparent:true,
+    opacity:0.85, side:THREE.DoubleSide, depthWrite:false });
+  var inst = new THREE.InstancedMesh(wing, mat, N*2);
+  inst.frustumCulled = false;          /* 几何的包围球只有一只翅膀大 */
+  inst.renderOrder = 9;
+  scene.add(inst);
+  var data = [], rnd = mulberry32(20261115);
+  for(var i=0;i<N;i++){
+    var is = isles[i % isles.length];
+    data.push({
+      cx: is.x + (rnd()-0.5)*0.35,
+      cz: is.z + (rnd()-0.5)*0.35,
+      r: Math.max(is.shape.sx, is.shape.sz)*(0.72 + rnd()*0.42),
+      h: 0.46 + rnd()*0.26,
+      a0: rnd()*TAU,
+      w: (0.13 + rnd()*0.12) * (rnd()<0.5 ? -1 : 1),
+      bf: 0.6 + rnd()*0.5,
+      ph: rnd()*TAU,
+      fl: 5.6 + rnd()*2.6
+    });
+  }
+  BIRDS = {mesh:inst, mat:mat, data:data};
+}
+var _bM = new THREE.Matrix4(), _bY = new THREE.Matrix4(), _bR = new THREE.Matrix4();
+function stepBirds(t, dt){
+  if(!BIRDS) return;
+  var d = BIRDS.data, inst = BIRDS.mesh;
+  /* 夜间收掉：先淡到 0 再隐，避免开关夜色时「啪」一下消失 */
+  var tgt = nightOn ? 0 : 0.85;
+  BIRDS.mat.opacity += (tgt - BIRDS.mat.opacity) * Math.min(1, dt*3.2);
+  var vis = BIRDS.mat.opacity > 0.012;
+  if(inst.visible !== vis) inst.visible = vis;
+  if(!vis) return;
+  for(var i=0;i<d.length;i++){
+    var b = d[i];
+    var a = b.a0 + t*b.w;
+    var x = b.cx + Math.cos(a)*b.r;
+    var z = b.cz + Math.sin(a)*b.r*0.88;
+    var y = b.h + Math.sin(t*b.bf + b.ph)*0.020;
+    /* 朝向 = 速度方向；模型前方是本地 +Z */
+    var vx = -Math.sin(a)*b.w, vz = Math.cos(a)*b.w*0.88;
+    var yaw = Math.atan2(vx, vz);
+    var flap = Math.sin(t*b.fl + b.ph)*0.62;
+    for(var s2=0;s2<2;s2++){
+      _bY.makeRotationY(yaw + (s2 ? Math.PI : 0));
+      _bR.makeRotationZ(flap);
+      _bM.multiplyMatrices(_bY, _bR);
+      _bM.setPosition(x, y, z);
+      inst.setMatrixAt(i*2+s2, _bM);
+    }
+  }
+  inst.instanceMatrix.needsUpdate = true;
+}
 
 /* ============ 跨岛航线 + 巡游小船 ============
    动机：好看来自密度和动线，不来自精度。这里只补「动线」，
@@ -2817,6 +3257,19 @@ function enterWalk(is){
   wKF.x=walker.position.x; wKF.z=walker.position.z; wKF.y=walker.position.y;
   focusX=wKF.x; focusZ=wKF.z; lookY=wKF.y+0.02;
   walkPhase=0;
+  /* 第一次走上岛：把「这岛上有东西可找」说一次，之后不再打扰。
+     没有这句，右上角那个 0/7 只是个看不懂的装饰 */
+  if(SEAL_ON && sealGot === 0 && !enterWalk.hinted){
+    enterWalk.hinted = true;
+    setTimeout(function(){
+      var el = document.getElementById('sealtoast');
+      if(!el || el.classList.contains('on')) return;
+      el.innerHTML = '群岛藏着 <em>七</em> 枚印记<s>走近就能盖下</s>';
+      el.classList.add('on');
+      clearTimeout(sealToastTimer);
+      sealToastTimer = setTimeout(function(){ el.classList.remove('on'); }, 3600);
+    }, 1500);
+  }
   /* 出图调试：?wtp=<角度> 把小人直接摆到距地标 0.13 的圆周上，验证跟随镜头与自动弹卡。
      无头环境 rAF 几乎不渲染（虚拟时间都给了定时器），缓动跑不起来 —— 所以连同镜头一起落终态 */
   var wm=location.search.match(/[?&]wtp=([0-9.]+)/);
@@ -2991,6 +3444,15 @@ function stepWalk(dt){
     if(location.search.indexOf('vdbg=1')>=0) document.title='WALK '+(voyIsle===is?'VOY':'-')
       +' d'+bd.toFixed(3)+' bp'+bp.x.toFixed(2)+','+bp.z.toFixed(2)
       +' w'+walker.position.x.toFixed(2)+','+walker.position.z.toFixed(2);
+  }
+  /* 寻印：踩到就盖。判定半径 0.13 —— 比弹卡（0.165）紧，得走过去，
+     擦身而过不算；但也不用像素级对准 */
+  if(SEAL_ON){
+    var sk = sealById[wid];
+    if(sk && !sk.got){
+      var sdx = walker.position.x - sk.x, sdz = walker.position.z - sk.z;
+      if(sdx*sdx + sdz*sdz < 0.0169) takeSeal(sk);
+    }
   }
 }
 /* 摇杆：独立 DOM，不与画布的拖拽/拾取冲突 */
@@ -3659,6 +4121,7 @@ function pick(clientX, clientY){
 var pointers = {}, dragging = false, lastX = 0, lastY = 0, moved = 0, lastPinch = 0, zoomStart = 1;
 renderer.domElement.addEventListener('pointerdown', function(e){
   try{ window.focus(); }catch(_e){}     /* 焦点自愈：iframe 里键盘事件常因没焦点而丢失 */
+  acGet();                              /* AudioContext 只能在用户手势里创建，这里预热一次 */
   if(camTween && camTween.intro) camTween = null;   /* 入场缓动：一碰就让位，别跟手抢镜头 */
   pointers[e.pointerId] = {x:e.clientX, y:e.clientY};
   var keys = Object.keys(pointers);
@@ -3947,6 +4410,8 @@ function animate(){
   skyDome.position.copy(camera.position);
   SEA_U.uTime.value = t;
   updateLabels();
+  stepSeals(t, dt);       /* 寻印：悬浮呼吸 / 靠近变亮 / 盖印飞散 */
+  stepBirds(t, dt);       /* 海鸟盘旋（夜间淡出） */
   // 云慢慢往上飘一点，别完全静止
   for(var ci2=0; ci2<cloudList.length; ci2++){
     var cl = cloudList[ci2];
@@ -4318,6 +4783,43 @@ function reveal(){
   if(loaderEl) setTimeout(function(){ loaderEl.classList.add('off'); }, wait);
 }
 reveal();
+
+/* ---- P6 初始化：印记册 / 七印 / 海鸟 / 声音开关 ----
+   放在 reveal() 之后：场景已经全部建完，这里只挂轻量物件和事件。 */
+(function initP6(){
+  var dots = document.getElementById('sealDots');
+  if(dots){
+    var h = '';
+    for(var i=0;i<ISLES_CFG.length;i++) h += '<i data-id="' + ISLES_CFG[i].id + '"></i>';
+    dots.innerHTML = h;
+  }
+  if(!SEAL_ON){
+    var bx = document.getElementById('sealbox');
+    if(bx) bx.style.display = 'none';
+  } else {
+    buildSeals();
+    sealHUD();
+  }
+  buildBirds();
+
+  var sdn = document.getElementById('sdClose');
+  if(sdn) sdn.addEventListener('click', function(){
+    document.getElementById('sealDone').classList.remove('on');
+  });
+  var sdy = document.getElementById('sdNight');
+  if(sdy) sdy.addEventListener('click', function(){
+    document.getElementById('sealDone').classList.remove('on');
+    if(!nightOn) setNight(true);
+  });
+
+  var snd = document.getElementById('snd');
+  if(snd) snd.addEventListener('click', function(){
+    SND_ON = !SND_ON;
+    this.classList.toggle('on', SND_ON);
+    this.textContent = SND_ON ? '声音' : '静音';
+    if(SND_ON){ acGet(); sfxSeal(); }      /* 开的时候响一声，确认真的有声音 */
+  });
+})();
 
 requestAnimationFrame(function(){ animate(); });
 
