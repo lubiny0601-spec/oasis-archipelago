@@ -346,9 +346,50 @@ html.hero .stage{cursor:default}
   .brand h1{font-size:20px;letter-spacing:2.4px}
   .bar button{border-radius:10px}
 }
+
+/* ==========================================================================
+   P5 · 首屏体验 —— loader 与入场
+   --------------------------------------------------------------------------
+   three.min.js 下载 + 场景构建要 1~3 秒，这期间画面只有一片空白。loader
+   用与 UI 同源的米黄纸卡顶着（底是 .stage 同款海色渐变，淡出时和 3D 画面
+   无缝衔接）；构建完成后卡片浮起淡出，相机同时从「高而远」落到默认机位
+   —— 第一眼是俯瞰海面，群岛随后浮上来。拖动随时打断；snap/hero 与
+   ?land= 等直达模式跳过入场机位，构图照旧可复现。
+   ========================================================================== */
+.loader{position:fixed;inset:0;z-index:99;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;opacity:1;
+  background:linear-gradient(180deg,#a8dcf0 0%,#c4e8f4 34%,#d9f1f6 62%,#eaf8f8 100%);
+  transition:opacity .62s ease .05s}
+.loader.off{opacity:0;visibility:hidden;
+  transition:opacity .62s ease .05s, visibility 0s linear .78s}
+.ld-card{text-align:center;transform:translateY(0);transition:transform .62s ease .05s}
+.loader.off .ld-card{transform:translateY(-16px)}
+.ld-t{font-family:Georgia,"Songti SC","Noto Serif SC","SimSun",serif;
+  font-size:clamp(30px,5.4vw,46px);font-weight:700;
+  letter-spacing:12px;text-indent:12px;color:#17352c;
+  text-shadow:0 2px 0 rgba(255,255,255,.60)}
+.ld-bar{width:124px;height:3px;margin:20px auto 14px;background:rgba(30,64,52,.15);
+  border-radius:2px;overflow:hidden;position:relative}
+.ld-bar i{position:absolute;left:-42%;top:0;height:100%;width:42%;border-radius:2px;
+  background:#2a6353;animation:ldSlide 1.25s ease-in-out infinite}
+@keyframes ldSlide{0%{left:-42%}58%{left:64%}100%{left:104%}}
+.ld-s{font-size:11px;font-weight:700;letter-spacing:3.5px;text-indent:3.5px;
+  color:rgba(23,53,44,.52)}
+html.snap .loader{display:none!important}
+/* 品牌：等 loader 揭开再进场，别跟加载卡叠字 */
+.brand{opacity:0;transition:opacity 1.1s ease .30s}
+html.in .brand{opacity:1}
+html.snap .brand{transition:none!important;opacity:1}
 </style>
 </head>
 <body>
+<div class="loader" id="loader" aria-hidden="true">
+  <div class="ld-card">
+    <div class="ld-t">群岛</div>
+    <div class="ld-bar"><i></i></div>
+    <div class="ld-s">正在铺开海面</div>
+  </div>
+</div>
 <div class="app" id="app">
   <div class="stage" id="stage">
     <div class="haze"></div>
@@ -3613,6 +3654,7 @@ function pick(clientX, clientY){
 var pointers = {}, dragging = false, lastX = 0, lastY = 0, moved = 0, lastPinch = 0, zoomStart = 1;
 renderer.domElement.addEventListener('pointerdown', function(e){
   try{ window.focus(); }catch(_e){}     /* 焦点自愈：iframe 里键盘事件常因没焦点而丢失 */
+  if(camTween && camTween.intro) camTween = null;   /* 入场缓动：一碰就让位，别跟手抢镜头 */
   pointers[e.pointerId] = {x:e.clientX, y:e.clientY};
   var keys = Object.keys(pointers);
   if(keys.length === 1){ dragging = true; lastX = e.clientX; lastY = e.clientY; moved = 0; }
@@ -4248,6 +4290,29 @@ if(HERO){
 /* ?noveg=1 把树全部收掉：给小人 / 地标出特写时，树冠会把主体整个罩住 */
 if(NOVEG_ON)
   for(var nv=0; nv<TREE_MESHES.length; nv++) TREE_MESHES[nv].visible = false;
+
+/* ============ P5 · 首屏体验：loader 揭开 + 入场 ============
+   loader DOM 在 body 最前，three.min.js 下载与场景构建期间一直可见；
+   跑到这里说明构建完了 —— 相机先摆到「高而远」的起点，卡片淡出的同时
+   镜头缓缓落回默认机位。最短可见 620ms 防闪（快机上构建 <100ms 也不闪）。
+   snap/hero（出图）与 ?land=/?isle=/?work=/?voy= 直达不摆入场机位，
+   构图照旧可复现。 */
+var loaderEl = document.getElementById('loader');
+var LD_T0 = performance.now();
+var LD_CAM = !(SNAP || HERO || /[?&](land|isle|work|voy)=/.test(location.search));
+if(LD_CAM){ phi = 0.40; zoom = 1.40; }    /* 更高更远：落下来才有一段航程感 */
+function reveal(){
+  if(reveal.done) return;
+  reveal.done = true;
+  document.documentElement.classList.add('in');            /* 品牌区随后淡入 */
+  if(LD_CAM){
+    easeTo(PHI_ARCH, THETA0, 1, 0, 0, 2200, 0);
+    if(camTween) camTween.intro = true;
+  }
+  var wait = Math.max(0, 620 - (performance.now() - LD_T0));
+  if(loaderEl) setTimeout(function(){ loaderEl.classList.add('off'); }, wait);
+}
+reveal();
 
 requestAnimationFrame(function(){ animate(); });
 
